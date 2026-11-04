@@ -339,9 +339,6 @@ enum ImportGroups {
     }
 
     var module = rest.prefix(while: isIdentifierCharacter)
-    guard let first = module.first, !first.isNumber else {
-      return nil
-    }
     var tail = rest.dropFirst(module.count)
     while tail.first == ".", tail.dropFirst().first.map(isIdentifierCharacter) == true {
       let component = tail.dropFirst().prefix(while: isIdentifierCharacter)

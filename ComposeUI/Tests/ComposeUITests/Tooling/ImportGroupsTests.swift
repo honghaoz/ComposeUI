@@ -123,6 +123,38 @@ class ImportGroupsTests: XCTestCase {
     """)
   }
 
+  func test_group_ifBlocksOfTheSameModule_keepTheirOrder() {
+    // given: two #if blocks that import the same module, the tvOS block before the iOS block, after another import of
+    // their group
+    let text = """
+    import Foundation
+    #if os(tvOS)
+    import UIKit
+    #endif
+    #if os(iOS)
+    import UIKit
+    #endif
+
+    class A {}
+    """
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: the blocks come first, in their order, as their module doesn't order them
+    expect(outcome) == .grouped("""
+    #if os(tvOS)
+    import UIKit
+    #endif
+    #if os(iOS)
+    import UIKit
+    #endif
+    import Foundation
+
+    class A {}
+    """)
+  }
+
   func test_group_fileWideIf_staysAboveTheImports() {
     // given: a file in an #if block, whose imports start right after the #if
     let text = """
@@ -209,6 +241,18 @@ class ImportGroupsTests: XCTestCase {
     expect(ImportGroups.group(text, config: Constants.config)) == .grouped(text)
   }
 
+  func test_group_ifWithoutItsEndif_isLeftAlone() {
+    // given: a file in an #if block whose #endif is missing, with imports of different groups
+    let text = """
+    #if canImport(UIKit)
+    import UIKit
+    import ChouTiTest
+    """
+
+    // then: the #if is neither a file-wide #if nor a block of imports, so it starts the code, and the file stays as it is
+    expect(ImportGroups.group(text, config: Constants.config)) == .grouped(text)
+  }
+
   func test_group_fileWideIf_withDirectivesInACommentAndAString_endsAtItsEndif() {
     // given: a file in an #if block, with an #endif in a block comment and an #if in a multiline string literal
     let text = #"""
@@ -275,8 +319,9 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_codeAfterTheImports_isLeftAlone() {
-    // given: an #if block of code, an attribute of a declaration, and a declaration after a block comment on its line,
-    // right after the imports
+    // given: an #if block of code, one after a comment, one with only a comment, an attribute of a declaration, one
+    // whose arguments go on to the next lines, and a declaration after a block comment on its line, right after the
+    // imports
     let ifBlock = """
     @testable import ComposeUI
 
@@ -285,10 +330,33 @@ class ImportGroupsTests: XCTestCase {
     enum Checks {}
     #endif
     """
+    let ifBlockAfterAComment = """
+    import ChouTiTest
+
+    // the checks
+    #if DEBUG
+    enum Checks {}
+    #endif
+    """
+    let ifBlockWithAComment = """
+    import ChouTiTest
+
+    #if DEBUG
+    // the checks
+    #endif
+    """
     let attribute = """
     import ChouTiTest
 
     @MainActor
+    final class A {}
+    """
+    let attributeOnLines = """
+    import ChouTiTest
+
+    @available(
+      *, deprecated
+    )
     final class A {}
     """
     let blockComment = """
@@ -299,7 +367,10 @@ class ImportGroupsTests: XCTestCase {
 
     // then: none is an import, so the files stay as they are
     expect(ImportGroups.group(ifBlock, config: Constants.config)) == .grouped(ifBlock)
+    expect(ImportGroups.group(ifBlockAfterAComment, config: Constants.config)) == .grouped(ifBlockAfterAComment)
+    expect(ImportGroups.group(ifBlockWithAComment, config: Constants.config)) == .grouped(ifBlockWithAComment)
     expect(ImportGroups.group(attribute, config: Constants.config)) == .grouped(attribute)
+    expect(ImportGroups.group(attributeOnLines, config: Constants.config)) == .grouped(attributeOnLines)
     expect(ImportGroups.group(blockComment, config: Constants.config)) == .grouped(blockComment)
   }
 
@@ -520,12 +591,29 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_commentBetweenImports_isUnsupported() {
-    // given: a comment between two imports, a comment between a file-wide #if and its imports, and a comment before a
-    // line with two imports
+    // given: a comment between two imports, one with a blank line after it, one before an #if block of imports, a
+    // comment between a file-wide #if and its imports, and a comment before a line with two imports
     let betweenImports = """
     import ChouTiTest
     // the views
     import UIKit
+
+    class A {}
+    """
+    let withABlankLineAfterIt = """
+    import ChouTiTest
+    // the views
+
+    import UIKit
+
+    class A {}
+    """
+    let beforeAnIfBlock = """
+    import ChouTiTest
+    // the views
+    #if canImport(UIKit)
+    import UIKit
+    #endif
 
     class A {}
     """
@@ -547,6 +635,8 @@ class ImportGroupsTests: XCTestCase {
 
     // then: the imports can't be grouped, as the comment's place is unknown
     expect(ImportGroups.group(betweenImports, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
+    expect(ImportGroups.group(withABlankLineAfterIt, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
+    expect(ImportGroups.group(beforeAnIfBlock, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
     expect(ImportGroups.group(afterTheIf, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
     expect(ImportGroups.group(beforeTwoImports, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
   }
@@ -619,7 +709,8 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_lineWithMoreThanAnImport_isUnsupported() {
-    // given: two imports on the first line, and an import and a declaration on the line after an import
+    // given: two imports on the first line, an import and a declaration on the line after an import, and two imports
+    // with a block comment between them
     let twoImports = """
     import ChouTi; import ChouTiTest
     import Foundation
@@ -630,10 +721,15 @@ class ImportGroupsTests: XCTestCase {
     import Foundation
     import ChouTi; let x = 1
     """
+    let blockCommentBetween = """
+    import Foundation
+    import ChouTi /* the helpers */; import ChouTiTest
+    """
 
     // then: the imports can't be grouped, as the things on a line can belong in different places
     expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 1, reason: "a line with more than an import and a comment")
     expect(ImportGroups.group(importAndCode, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
+    expect(ImportGroups.group(blockCommentBetween, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
   }
 
   func test_group_lineWithMoreThanAnImport_inAnIfBlock_isUnsupported() {
