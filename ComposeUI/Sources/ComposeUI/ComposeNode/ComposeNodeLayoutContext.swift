@@ -44,6 +44,9 @@ public struct ComposeNodeLayoutContext {
   #if canImport(UIKit)
   /// The text size that the content renders at, `.unspecified` when it's unknown.
   public let contentSizeCategory: UIContentSizeCategory
+
+  /// The weight of the text that the content renders, `.bold` while Bold Text is on, `.unspecified` when it's unknown.
+  public let legibilityWeight: UILegibilityWeight
   #endif
 
   /// The content evaluation shared by the layout and rendering that use this context.
@@ -65,12 +68,13 @@ public struct ComposeNodeLayoutContext {
     self.scaleFactor = scaleFactor
     #if canImport(UIKit)
     self.contentSizeCategory = .unspecified
+    self.legibilityWeight = .unspecified
     #endif
     self.contentEvaluation = ContentEvaluation()
     self.passId = Self.makePassId()
   }
 
-  /// Creates a layout context with the given content evaluation.
+  /// Creates a layout context.
   ///
   /// - Parameters:
   ///   - scaleFactor: The scale factor.
@@ -79,21 +83,28 @@ public struct ComposeNodeLayoutContext {
     self.scaleFactor = scaleFactor
     #if canImport(UIKit)
     self.contentSizeCategory = .unspecified
+    self.legibilityWeight = .unspecified
     #endif
     self.contentEvaluation = contentEvaluation
     self.passId = Self.makePassId()
   }
 
   #if canImport(UIKit)
-  /// Creates a layout context with the given text size and content evaluation.
+  /// Creates a layout context.
   ///
   /// - Parameters:
   ///   - scaleFactor: The scale factor.
   ///   - contentSizeCategory: The text size that the content renders at, `.unspecified` when it's unknown.
+  ///   - legibilityWeight: The weight of the text that the content renders, `.unspecified` when it's unknown.
   ///   - contentEvaluation: The content evaluation shared by the layout and rendering that use this context.
-  init(scaleFactor: CGFloat, contentSizeCategory: UIContentSizeCategory, contentEvaluation: ContentEvaluation) {
+  init(scaleFactor: CGFloat,
+       contentSizeCategory: UIContentSizeCategory,
+       legibilityWeight: UILegibilityWeight,
+       contentEvaluation: ContentEvaluation)
+  {
     self.scaleFactor = scaleFactor
     self.contentSizeCategory = contentSizeCategory
+    self.legibilityWeight = legibilityWeight
     self.contentEvaluation = contentEvaluation
     self.passId = Self.makePassId()
   }

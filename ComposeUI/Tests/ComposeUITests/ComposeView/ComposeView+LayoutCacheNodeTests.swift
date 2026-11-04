@@ -132,25 +132,31 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
   }
 
   #if canImport(UIKit)
-  func test_contentSizeCategoryChange_recomputesCachedLayout() {
-    // given: a cache node wrapping a test node, laid out at a text size
+  func test_textTraitsChange_recomputesCachedLayout() {
+    // given: a cache node wrapping a test node, laid out at a text size and weight
     let state = TestNode.State()
     let cachedNode = ComposeView.LayoutCacheNode(node: TestNode(state: state))
     let size = CGSize(width: 100, height: 100)
-    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .large, contentEvaluation: ContentEvaluation()))
+    _ = cachedNode.layout(containerSize: size, context: Self.context(.large, .regular))
     expect(state.layoutCount) == 1
 
-    // when: laying it out again at the same size and text size
-    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .large, contentEvaluation: ContentEvaluation()))
+    // when: laying it out again at the same size, text size and weight
+    _ = cachedNode.layout(containerSize: size, context: Self.context(.large, .regular))
 
     // then: the cached layout is reused
     expect(state.layoutCount) == 1
 
-    // when: laying it out at the same size and another text size
-    _ = cachedNode.layout(containerSize: size, context: ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: .accessibilityExtraLarge, contentEvaluation: ContentEvaluation()))
+    // when: laying it out at the same size and weight, and another text size
+    _ = cachedNode.layout(containerSize: size, context: Self.context(.accessibilityExtraLarge, .regular))
 
     // then: the wrapped node lays out again
     expect(state.layoutCount) == 2
+
+    // when: laying it out at the same size and text size, and another weight
+    _ = cachedNode.layout(containerSize: size, context: Self.context(.accessibilityExtraLarge, .bold))
+
+    // then: the wrapped node lays out again
+    expect(state.layoutCount) == 3
   }
   #endif
 
@@ -399,6 +405,13 @@ class ComposeView_LayoutCacheNodeTests: XCTestCase {
     /// The size of the rows that `makeRowsWithIds()` makes.
     static let rowsSize = CGSize(width: 10, height: 30)
   }
+
+  #if canImport(UIKit)
+  /// Returns a layout context at a text size and weight.
+  private static func context(_ contentSizeCategory: UIContentSizeCategory, _ legibilityWeight: UILegibilityWeight) -> ComposeNodeLayoutContext {
+    ComposeNodeLayoutContext(scaleFactor: 1, contentSizeCategory: contentSizeCategory, legibilityWeight: legibilityWeight, contentEvaluation: ContentEvaluation())
+  }
+  #endif
 
   /// Returns 3 rows of 10 points in a vertical stack, with ids past the 15 bytes that a string stores inline, so that
   /// their joined ids are in storage of their own.

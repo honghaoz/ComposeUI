@@ -42,7 +42,7 @@ public extension SwiftUI.View {
 
   /// Get a fitting size based on the proposing size.
   ///
-  /// The view is measured outside any window, so it doesn't follow a window's text size.
+  /// The view is measured outside any window, so it doesn't follow a window's traits, such as its text size.
   ///
   /// - Parameters:
   ///   - proposingSize: The proposing container size.
@@ -54,7 +54,7 @@ public extension SwiftUI.View {
 
 extension SwiftUI.View {
 
-  /// Returns the size that fits the view in a layout, at the layout's text size.
+  /// Returns the size that fits the view in a layout, with the layout's text traits.
   ///
   /// - Parameters:
   ///   - proposingSize: The proposing container size.
@@ -66,16 +66,54 @@ extension SwiftUI.View {
     #endif
 
     #if canImport(UIKit)
-    // the sizing host is outside any window, so it doesn't have the text size that the view renders at, which the view
-    // is pinned to instead
-    if #available(iOS 15.0, tvOS 15.0, *), let typeSize = DynamicTypeSize(context.contentSizeCategory) {
-      return SwiftUISizingHostPool.shared.sizeThatFits(dynamicTypeSize(typeSize), in: proposingSize)
+    // the sizing host is outside any window, so it doesn't have the text traits that the view renders with, which the
+    // view is pinned to instead
+    if #available(iOS 15.0, tvOS 15.0, *), let textTraits = TextTraitsPin(context) {
+      return SwiftUISizingHostPool.shared.sizeThatFits(modifier(textTraits), in: proposingSize)
     } else {
       return sizeThatFits(proposingSize)
     }
     #endif
   }
 }
+
+#if canImport(UIKit)
+/// Sets a layout context's text traits in a view's environment.
+@available(iOS 15.0, tvOS 15.0, *)
+private struct TextTraitsPin: ViewModifier {
+
+  /// The text size, or `nil` to keep the environment's.
+  private let dynamicTypeSize: DynamicTypeSize?
+
+  /// The text weight, or `nil` to keep the environment's.
+  private let legibilityWeight: LegibilityWeight?
+
+  /// Creates the pin of a layout context's text traits.
+  ///
+  /// - Parameter context: The layout context.
+  /// - Returns: The pin, or `nil` when the context's text traits are all unspecified.
+  init?(_ context: ComposeNodeLayoutContext) {
+    let dynamicTypeSize = DynamicTypeSize(context.contentSizeCategory)
+    let legibilityWeight = LegibilityWeight(context.legibilityWeight)
+    guard dynamicTypeSize != nil || legibilityWeight != nil else {
+      return nil
+    }
+    self.dynamicTypeSize = dynamicTypeSize
+    self.legibilityWeight = legibilityWeight
+  }
+
+  func body(content: Content) -> some SwiftUI.View {
+    content.transformEnvironment(\.self) { environment in
+      if let dynamicTypeSize {
+        environment.dynamicTypeSize = dynamicTypeSize
+      }
+      if let legibilityWeight {
+        environment.legibilityWeight = legibilityWeight
+      }
+    }
+  }
+}
+#endif
 
 #if canImport(AppKit)
 private typealias HostingController = NSHostingController

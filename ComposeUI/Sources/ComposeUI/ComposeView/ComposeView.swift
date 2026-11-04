@@ -43,9 +43,9 @@ import Combine
 /// ## Content Lifecycle
 ///
 /// The content builder runs on refresh: an explicit `refresh()` or `setNeedsRefresh()`, or an environment change such
-/// as a window, display scale or text size change. A bounds change (resize or scroll) lays out the retained content
-/// again without running the builder, so changed application data shows only after a refresh. `sizeThatFits(_:)`
-/// measures the builder's latest content, which may differ from the displayed content.
+/// as a window or display scale change. A bounds change (resize or scroll) lays out the retained content again without
+/// running the builder, so changed application data shows only after a refresh. `sizeThatFits(_:)` measures the
+/// builder's latest content, which may differ from the displayed content.
 ///
 /// ## Z-Order
 ///
@@ -304,7 +304,7 @@ open class ComposeView: BaseScrollView {
     #endif
 
     #if os(visionOS)
-    observeContentSizeCategory()
+    observeTextTraits()
     #endif
 
     observeTheme()
@@ -754,7 +754,7 @@ open class ComposeView: BaseScrollView {
     // rasterized contents and pixel rounding use the new scale instead of a stale one.
     //
     // visionOS is excluded because the content scale is pinned to the default scale factor there (see `windowScaleFactor`),
-    // and it observes the text size with a registration instead (see `observeContentSizeCategory()`).
+    // and it observes the text traits with a registration instead (see `observeTextTraits()`).
 
     let oldContentScaleFactor = contentScaleFactor
     // an unspecified trait collection reports a display scale of 0, clamp so the scale stays usable
@@ -766,26 +766,29 @@ open class ComposeView: BaseScrollView {
       setNeedsRefresh(animated: false)
     }
 
-    if let previousTraitCollection, previousTraitCollection.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory {
-      contentSizeCategoryDidChange()
+    if let previousTraitCollection,
+       previousTraitCollection.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory
+       || previousTraitCollection.legibilityWeight != traitCollection.legibilityWeight
+    {
+      textTraitsDidChange()
     }
   }
   #endif
 
   #if canImport(UIKit)
-  /// Renders the content again at the view's new text size.
-  private func contentSizeCategoryDidChange() {
-    // content can size itself by the text size, such as a SwiftUI view with text, and the views that show the content
-    // already show the new text size, so the content lays out again without animation
+  /// Renders the content again with the view's new text traits.
+  private func textTraitsDidChange() {
+    // content can size itself by its text, such as a SwiftUI view with text, and the views that show the content already
+    // show the new text, so the content lays out again without animation
     setNeedsRefresh(animated: false)
   }
   #endif
 
   #if os(visionOS)
-  /// Renders the content again when the view's text size changes.
-  private func observeContentSizeCategory() {
-    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: ComposeView, _: UITraitCollection) in
-      view.contentSizeCategoryDidChange()
+  /// Renders the content again when the view's text traits change.
+  private func observeTextTraits() {
+    registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitLegibilityWeight.self]) { (view: ComposeView, _: UITraitCollection) in
+      view.textTraitsDidChange()
     }
   }
   #endif
@@ -1834,9 +1837,11 @@ open class ComposeView: BaseScrollView {
     #endif
 
     #if canImport(UIKit)
+    let traitCollection = traitCollection
     return ComposeNodeLayoutContext(
       scaleFactor: contentScaleFactor,
       contentSizeCategory: traitCollection.preferredContentSizeCategory,
+      legibilityWeight: traitCollection.legibilityWeight,
       contentEvaluation: contentEvaluation
     )
     #endif

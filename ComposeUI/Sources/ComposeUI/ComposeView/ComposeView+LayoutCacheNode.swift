@@ -161,6 +161,9 @@ extension ComposeView {
       #if canImport(UIKit)
       /// The text size.
       let contentSizeCategory: UIContentSizeCategory
+
+      /// The text weight.
+      let legibilityWeight: UILegibilityWeight
       #endif
 
       /// Creates the layout inputs of a layout context.
@@ -170,6 +173,7 @@ extension ComposeView {
         scaleFactor = context.scaleFactor
         #if canImport(UIKit)
         contentSizeCategory = context.contentSizeCategory
+        legibilityWeight = context.legibilityWeight
         #endif
       }
 
@@ -183,7 +187,9 @@ extension ComposeView {
         #endif
 
         #if canImport(UIKit)
-        return scaleFactor == context.scaleFactor && contentSizeCategory == context.contentSizeCategory
+        return scaleFactor == context.scaleFactor
+          && legibilityWeight == context.legibilityWeight
+          && contentSizeCategory == context.contentSizeCategory
         #endif
       }
     }
