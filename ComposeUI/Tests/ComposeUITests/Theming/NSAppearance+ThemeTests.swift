@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 import ChouTiTest
@@ -45,4 +46,5 @@ class NSAppearance_ThemeTests: XCTestCase {
     expect(NSAppearance(named: .vibrantLight)?.theme) == .light
   }
 }
+
 #endif

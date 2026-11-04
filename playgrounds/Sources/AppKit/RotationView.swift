@@ -28,8 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import ComposeUI
 import AppKit
+
+import ComposeUI
 
 /// A view that rotates its content view.
 final class RotationView: BaseView {

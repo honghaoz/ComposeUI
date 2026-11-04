@@ -39,8 +39,8 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 - `make bootstrap`: bootstrap tools, hooks, and dependencies.
 - `make build`: build root package in release mode.
-- `make format`: run SwiftFormat + SwiftLint autocorrect across the repo.
-- `make lint`: run SwiftFormat lint + SwiftLint checks.
+- `make format`: group the imports, then run SwiftFormat + SwiftLint autocorrect across the repo.
+- `make lint`: check the import groups, then run SwiftFormat lint + SwiftLint checks.
 - `make build-playground-<platform>`: build the playground for macOS, iOS, tvOS or visionOS.
 - `make -C ComposeUI build`: build framework package in Debug for macOS/iOS/tvOS/visionOS.
 - `make -C ComposeUI build-release-<platform>`: release build per platform.
@@ -53,7 +53,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 # Coding Style & Naming Conventions
 
-- SwiftFormat and SwiftLint own formatting and style (configs in `configs/`). Run `make format` after edits instead of hand-formatting. The bullets below cover only what the tools can't enforce.
+- SwiftFormat, SwiftLint and `scripts/imports/group-imports.sh` own formatting and style (configs in `configs/`). The script groups the imports at the top of the Swift files that `configs/.import-groups` applies to, in its order: system frameworks, external frameworks (`ChouTi`), test frameworks (`ChouTiTest`), then local modules (`ComposeUI`). Run `make format` after edits instead of hand-formatting. The bullets below cover only what the tools can't enforce.
 - Follow existing Swift naming conventions: `lowerCamelCase` for functions/vars, `UpperCamelCase` for types.
 - Prefix string identifiers in shared namespaces, such as queue labels and attributed string or Core Animation keys, with `io.chouti.composeui.` and the name as spelled in Swift, for example `io.chouti.composeui.ReplacedImageRelease` or `io.chouti.composeui.themedShadow`. Write each as one literal, not built from a prefix constant, so that a search finds it.
 - Keep documentation concise: a one-line short summary plus parameter docs is the norm, not an essay. Add a clarification or a code example when it is necessary to understand or correctly use the API. Design rationale belongs in the inline comments or commit/PR description.

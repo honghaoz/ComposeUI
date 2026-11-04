@@ -28,8 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import ChouTiTest
 import UIKit
+
+import ChouTiTest
 
 /// A visible window in the host app's window scene.
 ///

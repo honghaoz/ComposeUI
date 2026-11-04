@@ -28,9 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import ChouTiTest
-
 import QuartzCore
+
+import ChouTiTest
 
 /// A layer on a paused timeline in a window, so that the layer's presentation shows the time that the timeline moves
 /// to, and the animations added to the layer begin at the timeline's time.

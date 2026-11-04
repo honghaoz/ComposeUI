@@ -31,11 +31,9 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
-
 import QuartzCore
 
 /// A model contains the shadow path and clip path for an inner shadow.

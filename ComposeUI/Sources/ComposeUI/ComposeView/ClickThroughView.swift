@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 /// A view that passes every click to the views behind it: its `hitTest(_:)` returns `nil` for every point.
@@ -39,4 +40,5 @@ import AppKit
 /// `ComposeView.InPlaceReuse`, since each change of the subview order makes AppKit build the layer tree of the window's
 /// views again at the next display.
 protocol ClickThroughView: NSView {}
+
 #endif

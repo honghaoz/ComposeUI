@@ -1,0 +1,20 @@
+# The groups of the imports at the top of the Swift files in `paths`, which `make format` groups and `make lint` checks
+# with `scripts/imports/group-imports.sh`.
+#
+# The imports go in the groups in this order, with a blank line between groups. `*` is the group of the modules that no
+# group lists, the system frameworks.
+
+paths: ComposeUI/Sources ComposeUI/Tests ComposeUI/HostedTests/ComposeUIHostedTests playgrounds/Sources
+exclude: ComposeUI/Sources/ComposeUI/_Deprecated ComposeUI/Tests/ComposeUITests/_Deprecated
+
+# system frameworks
+group: *
+
+# external frameworks
+group: ChouTi
+
+# test frameworks
+group: ChouTiTest XCTest
+
+# local modules
+group: ComposeUI

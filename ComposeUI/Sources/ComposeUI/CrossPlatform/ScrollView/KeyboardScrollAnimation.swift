@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 /// The animation that moves a scroll view's content for the keyboard.
@@ -550,4 +551,5 @@ private extension CGPoint {
     isVertical ? CGPoint(x: x, y: coordinate) : CGPoint(x: coordinate, y: y)
   }
 }
+
 #endif

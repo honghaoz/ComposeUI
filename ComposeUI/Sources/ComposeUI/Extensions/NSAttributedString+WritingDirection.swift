@@ -28,15 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
 extension NSAttributedString {
 

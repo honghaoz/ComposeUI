@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 /// The view that holds a scroll view's content, which takes the keyboard focus while the arrow and page keys can scroll
@@ -73,4 +74,5 @@ class ScrollDocumentView: BaseView {
     }
   }
 }
+
 #endif

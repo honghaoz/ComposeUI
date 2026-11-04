@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 import ChouTiTest
@@ -271,4 +272,5 @@ private final class FocusableView: NSView {
     true
   }
 }
+
 #endif

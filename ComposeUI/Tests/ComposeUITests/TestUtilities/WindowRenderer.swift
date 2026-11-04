@@ -30,10 +30,10 @@
 
 #if canImport(AppKit)
 
-import ChouTiTest
-
 import AppKit
 import Metal
+
+import ChouTiTest
 
 /// A window with a view to render through `CARenderer`, which shows the pixels that the window shows, including the
 /// contents that AppKit draws for a layer-backed view, which `CALayer.render(in:)` draws again instead.

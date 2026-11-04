@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 @testable import ComposeUI
@@ -60,4 +61,5 @@ extension KeyboardScrollAnimation {
     return offsets
   }
 }
+
 #endif

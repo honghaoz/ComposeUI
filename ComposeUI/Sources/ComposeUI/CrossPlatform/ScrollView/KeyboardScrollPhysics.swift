@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import CoreGraphics
 
 /// A direction that a key scrolls the content toward.
@@ -424,4 +425,5 @@ struct KeyboardScrollPhysics {
     static let restingDistance: CGFloat = 1
   }
 }
+
 #endif

@@ -28,8 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import ChouTiTest
 import UIKit
+
+import ChouTiTest
 
 @testable import ComposeUI
 

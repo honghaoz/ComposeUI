@@ -28,9 +28,9 @@
 //  IN THE SOFTWARE.
 //
 
-import ChouTiTest
-
 import QuartzCore
+
+import ChouTiTest
 
 // Core Animation gives animation values, presentation values and KVC values as `Any`. A conditional cast to a Core
 // Foundation type succeeds for any object, and a forced one crashes on use instead of failing the test, so colors and

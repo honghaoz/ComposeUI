@@ -31,14 +31,13 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import SwiftUI
 
 import ChouTiTest
 
-import SwiftUI
 import ComposeUI
 
 class SwiftUI_View_SizeThatFitsTests: XCTestCase {

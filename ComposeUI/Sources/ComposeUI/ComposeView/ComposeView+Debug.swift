@@ -29,6 +29,7 @@
 //
 
 #if DEBUG
+
 import Foundation
 
 public extension ComposeView {
@@ -104,4 +105,5 @@ public extension ComposeView {
     }
   }
 }
+
 #endif

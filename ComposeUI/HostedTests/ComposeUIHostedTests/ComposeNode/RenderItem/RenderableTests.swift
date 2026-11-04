@@ -30,8 +30,9 @@
 
 #if os(visionOS)
 
-import ChouTiTest
 import UIKit
+
+import ChouTiTest
 
 @testable import ComposeUI
 

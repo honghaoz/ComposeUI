@@ -30,10 +30,10 @@
 
 #if canImport(AppKit)
 
-import ChouTiTest
-
 import Metal
 import QuartzCore
+
+import ChouTiTest
 
 /// Renders a white layer over black through `CARenderer` on a paused timeline, to read the opacity that shows on
 /// screen, which `presentation()` doesn't report for stacked opacity animations.

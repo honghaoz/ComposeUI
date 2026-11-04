@@ -30,10 +30,12 @@ build-playground-visionOS: # Build the visionOS playground.
 
 .PHONY: format
 format: # Format the code.
+	@"$(REPO_ROOT)/scripts/imports/group-imports.sh" --fix
 	@"$(REPO_ROOT)/scripts/format.sh" --all
 
 .PHONY: lint
 lint: # Lint the code.
+	@"$(REPO_ROOT)/scripts/imports/group-imports.sh" --check
 	@"$(REPO_ROOT)/scripts/lint.sh" --all
 
 .PHONY: help

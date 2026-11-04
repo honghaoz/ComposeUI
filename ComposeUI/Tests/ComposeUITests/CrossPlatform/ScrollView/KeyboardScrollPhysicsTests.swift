@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import CoreGraphics
 
 import ChouTiTest
@@ -453,4 +454,5 @@ class KeyboardScrollPhysicsTests: XCTestCase {
     return positions
   }
 }
+
 #endif

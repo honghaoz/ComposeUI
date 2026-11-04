@@ -31,7 +31,6 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -237,8 +236,8 @@ extension Playground {
   }
 }
 
-import QuartzCore
 import CoreGraphics
+import QuartzCore
 
 struct CACornerRadii {
   var topLeft: CGSize

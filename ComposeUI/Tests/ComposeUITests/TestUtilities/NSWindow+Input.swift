@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 import Carbon.HIToolbox.Events
 
@@ -258,4 +259,5 @@ extension NSWindow {
     static let settlingTime: TimeInterval = 10
   }
 }
+
 #endif

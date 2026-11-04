@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit) && DEBUG
+
 import AppKit
 
 import ChouTiTest
@@ -1118,4 +1119,5 @@ class KeyboardScrollAnimationTests: XCTestCase {
     static let startTime: CFTimeInterval = 1000
   }
 }
+
 #endif

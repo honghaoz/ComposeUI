@@ -28,15 +28,13 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
 /// Runs the handlers added to it when the system is low on memory, so that the caches the framework keeps across
 /// refreshes can empty themselves.

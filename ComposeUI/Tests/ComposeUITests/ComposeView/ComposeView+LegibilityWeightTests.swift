@@ -30,9 +30,10 @@
 
 #if canImport(UIKit)
 
-import ChouTiTest
 import SwiftUI
 import UIKit
+
+import ChouTiTest
 
 @testable import ComposeUI
 
