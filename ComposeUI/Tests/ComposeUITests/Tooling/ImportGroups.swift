@@ -202,17 +202,21 @@ enum ImportGroups {
         items.append(Item(lines: [line], modules: [module], isBlock: false, line: index + 1))
         index += 1
       } else if isDirective(line, "#if") {
-        if let end = endOfImportBlock(lines, from: index) {
-          let blockLines = Array(lines[index ... end])
-          items.append(Item(lines: blockLines, modules: blockLines.compactMap(importedModule), isBlock: true, line: index + 1))
+        switch importBlock(lines, from: index) {
+        case .imports(let end, let modules):
+          items.append(Item(lines: Array(lines[index ... end]), modules: modules, isBlock: true, line: index + 1))
           index = end + 1
-        } else if items.isEmpty, let end = endOfBlock(lines, from: index), endsTheFile(lines, after: end) {
-          wrappers.append(line)
-          wrapperEnd = end
-          index += 1
-        } else {
-          codeStart = index
-          break scan
+        case .unreadableImport(let lineIndex):
+          return .unsupported(line: lineIndex + 1, reason: Constants.unreadableImportReason)
+        case .other:
+          if items.isEmpty, let end = endOfBlock(lines, from: index), endsTheFile(lines, after: end) {
+            wrappers.append(line)
+            wrapperEnd = end
+            index += 1
+          } else {
+            codeStart = index
+            break scan
+          }
         }
       } else if let next = lineAfterComment(lines, at: index) {
         if importFollows(lines, from: next) {
@@ -222,7 +226,7 @@ enum ImportGroups {
           break scan
         }
       } else if restAfterImportKeyword(line) != nil {
-        return .unsupported(line: index + 1, reason: "a line with more than an import and a comment")
+        return .unsupported(line: index + 1, reason: Constants.unreadableImportReason)
       } else {
         codeStart = index
         break scan
@@ -376,18 +380,32 @@ enum ImportGroups {
     return rest.dropFirst("import".count).drop(while: \.isWhitespace)
   }
 
-  /// Returns the index of the `#endif` of the `#if` block at a line when the block contains only imports and comments,
-  /// `nil` when it contains anything else or has no import.
+  /// What an `#if` block at the top of a file contains.
+  private enum Block: Equatable {
+
+    /// Imports and comments, with the index of the block's `#endif` and the modules it imports, without the ones in its
+    /// comments.
+    case imports(end: Int, modules: [String])
+
+    /// An import that can't be read, such as two imports on one line, with the index of its line.
+    case unreadableImport(Int)
+
+    /// Other lines, or no import.
+    case other
+  }
+
+  /// Returns what the `#if` block at a line contains, which it reads to the block's `#endif` while the block has only
+  /// imports and comments.
   ///
   /// The block moves whole, so a comment in it belongs to it, unlike a comment between imports.
   ///
   /// - Parameters:
   ///   - lines: The file's lines.
   ///   - start: The index of the block's `#if`.
-  /// - Returns: The index of the block's `#endif`.
-  private static func endOfImportBlock(_ lines: [String], from start: Int) -> Int? {
+  /// - Returns: What the block contains.
+  private static func importBlock(_ lines: [String], from start: Int) -> Block {
     var depth = 0
-    var hasImport = false
+    var modules: [String] = []
     var index = start
     while index < lines.count {
       let line = lines[index]
@@ -396,19 +414,21 @@ enum ImportGroups {
       } else if isDirective(line, "#endif") {
         depth -= 1
         if depth == 0 {
-          return hasImport ? index : nil
+          return modules.isEmpty ? .other : .imports(end: index, modules: modules)
         }
       } else if let next = lineAfterComment(lines, at: index) {
         index = next
         continue
-      } else if importedModule(line) != nil {
-        hasImport = true
+      } else if let module = importedModule(line) {
+        modules.append(module)
+      } else if restAfterImportKeyword(line) != nil {
+        return .unreadableImport(index)
       } else if !isDirective(line, "#elseif"), !isDirective(line, "#else") {
-        return nil
+        return .other
       }
       index += 1
     }
-    return nil
+    return .other
   }
 
   /// Returns the index of the `#endif` of the `#if` block at a line, `nil` when the block doesn't end.
@@ -462,8 +482,8 @@ enum ImportGroups {
     lines[(index + 1)...].allSatisfy { isBlank($0) || isDirective($0, "#endif") }
   }
 
-  /// Returns whether an import, or an `#if` block of imports, comes first from a line on, after comments and blank
-  /// lines.
+  /// Returns whether an import, read or not, or an `#if` block with one, comes first from a line on, after comments and
+  /// blank lines.
   ///
   /// - Parameters:
   ///   - lines: The file's lines.
@@ -477,7 +497,7 @@ enum ImportGroups {
     guard next < lines.count else {
       return false
     }
-    return importedModule(lines[next]) != nil || (isDirective(lines[next], "#if") && endOfImportBlock(lines, from: next) != nil)
+    return restAfterImportKeyword(lines[next]) != nil || (isDirective(lines[next], "#if") && importBlock(lines, from: next) != .other)
   }
 
   /// Returns the lines of a text with each run of imports sorted.
@@ -566,5 +586,8 @@ enum ImportGroups {
 
     /// The kinds of declaration that an import can import alone, as in `import struct Foundation.Date`.
     static let importKinds = ["typealias", "struct", "class", "enum", "protocol", "let", "var", "func"]
+
+    /// Why an import that can't be read makes the imports unsupported.
+    static let unreadableImportReason = "a line with more than an import and a comment"
   }
 }

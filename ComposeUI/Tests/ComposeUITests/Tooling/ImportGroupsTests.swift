@@ -403,6 +403,39 @@ class ImportGroupsTests: XCTestCase {
     """)
   }
 
+  func test_group_ifBlockWithAnImportInABlockComment_goesWithItsImports() {
+    // given: an #if block with a test framework's import in a block comment and a system framework's import, after an
+    // external framework
+    let text = """
+    import ChouTi
+    #if canImport(UIKit)
+    /*
+     import ChouTiTest
+     */
+    import UIKit
+    #endif
+
+    let x = 1
+    """
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: the import in the comment doesn't count, so the block goes to the system group
+    expect(outcome) == .grouped("""
+    #if canImport(UIKit)
+    /*
+     import ChouTiTest
+     */
+    import UIKit
+    #endif
+
+    import ChouTi
+
+    let x = 1
+    """)
+  }
+
   func test_group_blockCommentAfterAnImport_staysWithIt() {
     // given: an external framework with a block comment after it, before a system framework
     let text = """
@@ -480,7 +513,8 @@ class ImportGroupsTests: XCTestCase {
   }
 
   func test_group_commentBetweenImports_isUnsupported() {
-    // given: a comment between two imports, and a comment between a file-wide #if and its imports
+    // given: a comment between two imports, a comment between a file-wide #if and its imports, and a comment before a
+    // line with two imports
     let betweenImports = """
     import ChouTiTest
     // the views
@@ -496,10 +530,18 @@ class ImportGroupsTests: XCTestCase {
     class A {}
     #endif
     """
+    let beforeTwoImports = """
+    import ComposeUI
+    // the helpers
+    import ChouTi; import ChouTiTest
+
+    let x = 1
+    """
 
     // then: the imports can't be grouped, as the comment's place is unknown
     expect(ImportGroups.group(betweenImports, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
     expect(ImportGroups.group(afterTheIf, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
+    expect(ImportGroups.group(beforeTwoImports, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
   }
 
   func test_group_blockComments_areLeftAlone() {
@@ -575,6 +617,34 @@ class ImportGroupsTests: XCTestCase {
     // then: the imports can't be grouped, as the things on a line can belong in different places
     expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 1, reason: "a line with more than an import and a comment")
     expect(ImportGroups.group(importAndCode, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
+  }
+
+  func test_group_lineWithMoreThanAnImport_inAnIfBlock_isUnsupported() {
+    // given: an #if block with two imports on a line, and one with an import whose block comment goes on to the next
+    // line, before other imports
+    let twoImports = """
+    #if canImport(UIKit)
+    import UIKit; import SwiftUI
+    #endif
+    import ComposeUI
+    import Foundation
+
+    let x = 1
+    """
+    let commentOnTwoLines = """
+    import ComposeUI
+    #if canImport(UIKit)
+    import UIKit /* the views,
+     and more */
+    #endif
+    import Foundation
+
+    let x = 1
+    """
+
+    // then: the imports can't be grouped, as for a line outside an #if block
+    expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
+    expect(ImportGroups.group(commentOnTwoLines, config: Constants.config)) == .unsupported(line: 3, reason: "a line with more than an import and a comment")
   }
 
   func test_group_ifBlockOfModulesOfDifferentGroups_isUnsupported() {
