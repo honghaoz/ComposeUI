@@ -28,10 +28,11 @@
 //  IN THE SOFTWARE.
 //
 
+import ChouTi
+
 import ChouTiTest
 
 @testable import ComposeUI
-import ChouTi
 
 class ComposeView_RefreshTests: XCTestCase {
 

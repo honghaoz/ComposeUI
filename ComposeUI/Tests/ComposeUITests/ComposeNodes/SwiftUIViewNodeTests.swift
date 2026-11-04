@@ -28,14 +28,14 @@
 //  IN THE SOFTWARE.
 //
 
-import ChouTiTest
-
-@testable import ComposeUI
-import SwiftUI
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import SwiftUI
+
+import ChouTiTest
+
+@testable import ComposeUI
 
 class SwiftUIViewNodeTests: XCTestCase {
 

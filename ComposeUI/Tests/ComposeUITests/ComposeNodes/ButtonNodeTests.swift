@@ -32,8 +32,9 @@
 import UIKit.UIGestureRecognizerSubclass
 #endif
 
-import ChouTiTest
 import ChouTi
+
+import ChouTiTest
 
 @testable import ComposeUI
 

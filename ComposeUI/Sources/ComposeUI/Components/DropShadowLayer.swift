@@ -31,11 +31,9 @@
 #if canImport(AppKit)
 import AppKit
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif
-
 import QuartzCore
 
 /// A model contains the shadow path and cutout path for a drop shadow.

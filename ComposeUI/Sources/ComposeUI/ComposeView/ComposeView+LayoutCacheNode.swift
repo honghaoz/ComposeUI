@@ -28,11 +28,10 @@
 //  IN THE SOFTWARE.
 //
 
-import Foundation
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
 extension ComposeView {
 

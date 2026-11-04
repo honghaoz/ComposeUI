@@ -32,7 +32,6 @@
 import AppKit
 import Carbon.HIToolbox.Events
 #endif
-
 #if canImport(UIKit)
 import UIKit
 #endif

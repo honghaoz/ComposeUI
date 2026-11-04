@@ -28,10 +28,11 @@
 //  IN THE SOFTWARE.
 //
 
+import SwiftUI
+
 import ChouTiTest
 
 @testable import ComposeUI
-import SwiftUI
 
 class SwiftUIViewNode_ContentEvaluationTests: XCTestCase {
 

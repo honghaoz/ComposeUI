@@ -29,11 +29,11 @@
 //
 
 import CoreGraphics
+import SwiftUI
 
 import ChouTiTest
 
 @testable import ComposeUI
-import SwiftUI
 
 class ComposeNodeSizingTests: XCTestCase {
 

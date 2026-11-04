@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 extension ComposeView {
@@ -50,4 +51,5 @@ extension ComposeView {
     }
   }
 }
+
 #endif

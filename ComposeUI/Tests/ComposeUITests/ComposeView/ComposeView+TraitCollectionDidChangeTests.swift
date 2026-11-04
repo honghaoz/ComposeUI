@@ -30,8 +30,9 @@
 
 #if canImport(UIKit) && !os(visionOS)
 
-import ChouTiTest
 import UIKit
+
+import ChouTiTest
 
 import ComposeUI
 

@@ -30,8 +30,9 @@
 
 #if canImport(AppKit)
 
-import ChouTiTest
 import AppKit
+
+import ChouTiTest
 
 @testable import ComposeUI
 

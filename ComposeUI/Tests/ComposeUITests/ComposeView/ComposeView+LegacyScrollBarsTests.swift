@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 import ChouTiTest
@@ -1308,4 +1309,5 @@ private final class LayoutCountingComposeView: ComposeView {
     super.layout()
   }
 }
+
 #endif

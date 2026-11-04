@@ -28,9 +28,10 @@
 //  IN THE SOFTWARE.
 //
 
+import Combine
+
 import ChouTiTest
 
-import Combine
 import ComposeUI
 
 class BaseScrollViewTests: XCTestCase {

@@ -28,12 +28,11 @@
 //  IN THE SOFTWARE.
 //
 
-import CoreGraphics
-import Foundation
-
 #if canImport(UIKit)
 import UIKit
 #endif
+import CoreGraphics
+import Foundation
 
 /// The context for layout.
 public struct ComposeNodeLayoutContext {

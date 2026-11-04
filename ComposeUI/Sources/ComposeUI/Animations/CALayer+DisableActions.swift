@@ -28,8 +28,8 @@
 //  IN THE SOFTWARE.
 //
 
-import QuartzCore
 import ObjectiveC.runtime
+import QuartzCore
 
 // MARK: - Disable Actions
 

@@ -29,6 +29,7 @@
 //
 
 #if canImport(AppKit)
+
 import AppKit
 
 import ChouTiTest
@@ -326,4 +327,5 @@ private final class AccessibleView: NSView {
     .group
   }
 }
+
 #endif

@@ -29,6 +29,7 @@
 //
 
 #if canImport(UIKit)
+
 import UIKit
 
 import ChouTiTest
@@ -44,4 +45,5 @@ class UIUserInterfaceStyle_ThemeTests: XCTestCase {
     expect(UIUserInterfaceStyle.dark.theme) == .dark
   }
 }
+
 #endif
