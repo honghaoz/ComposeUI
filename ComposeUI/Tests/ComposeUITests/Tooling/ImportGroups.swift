@@ -171,8 +171,8 @@ enum ImportGroups {
   /// stay above the imports with a blank line after them, and their `#endif` lines get a blank line before them. Another
   /// `#if` before the imports, such as one around a platform's part of the file, starts the code, which leaves the file
   /// alone. A comment in an `#if` block of imports moves with the block. A comment between imports, an `#if` block that
-  /// imports modules of different groups, or a line with more than an import and a comment, makes the imports
-  /// unsupported, as the grouping doesn't know where it belongs.
+  /// imports modules of different groups, a line with more than an import and a comment, or an import after a block
+  /// comment on its line, makes the imports unsupported, as the grouping doesn't know where it belongs.
   ///
   /// - Parameters:
   ///   - text: The file's text.
@@ -206,8 +206,8 @@ enum ImportGroups {
         case .imports(let end, let modules):
           items.append(Item(lines: Array(lines[index ... end]), modules: modules, isBlock: true, line: index + 1))
           index = end + 1
-        case .unreadableImport(let lineIndex):
-          return .unsupported(line: lineIndex + 1, reason: Constants.unreadableImportReason)
+        case .unsupported(let lineIndex, let reason):
+          return .unsupported(line: lineIndex + 1, reason: reason)
         case .other:
           if items.isEmpty, let end = endOfBlock(lines, from: index), endsTheFile(lines, after: end) {
             wrappers.append(line)
@@ -227,6 +227,8 @@ enum ImportGroups {
         }
       } else if restAfterImportKeyword(line) != nil {
         return .unsupported(line: index + 1, reason: Constants.unreadableImportReason)
+      } else if let end = importAfterBlockComment(lines, at: index) {
+        return .unsupported(line: end + 1, reason: Constants.importAfterBlockCommentReason)
       } else {
         codeStart = index
         break scan
@@ -387,8 +389,8 @@ enum ImportGroups {
     /// comments.
     case imports(end: Int, modules: [String])
 
-    /// An import that can't be read, such as two imports on one line, with the index of its line.
-    case unreadableImport(Int)
+    /// A line that makes the imports unsupported, such as two imports on one line, with its index and why.
+    case unsupported(lineIndex: Int, reason: String)
 
     /// Other lines, or no import.
     case other
@@ -422,7 +424,9 @@ enum ImportGroups {
       } else if let module = importedModule(line) {
         modules.append(module)
       } else if restAfterImportKeyword(line) != nil {
-        return .unreadableImport(index)
+        return .unsupported(lineIndex: index, reason: Constants.unreadableImportReason)
+      } else if let end = importAfterBlockComment(lines, at: index) {
+        return .unsupported(lineIndex: end, reason: Constants.importAfterBlockCommentReason)
       } else if !isDirective(line, "#elseif"), !isDirective(line, "#else") {
         return .other
       }
@@ -497,7 +501,9 @@ enum ImportGroups {
     guard next < lines.count else {
       return false
     }
-    return restAfterImportKeyword(lines[next]) != nil || (isDirective(lines[next], "#if") && importBlock(lines, from: next) != .other)
+    return restAfterImportKeyword(lines[next]) != nil
+      || importAfterBlockComment(lines, at: next) != nil
+      || (isDirective(lines[next], "#if") && importBlock(lines, from: next) != .other)
   }
 
   /// Returns the lines of a text with each run of imports sorted.
@@ -538,7 +544,7 @@ enum ImportGroups {
   }
 
   /// Returns the index of the line after the blank line, the line comment or the block comment at a line, `nil` for a
-  /// line of code.
+  /// line of code, or for a block comment with an import after it on its last line, which isn't only a comment.
   ///
   /// A block comment is skipped whole, as the lines in it, such as the code of a template, aren't the file's.
   ///
@@ -550,18 +556,52 @@ enum ImportGroups {
     let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
     if trimmed.isEmpty || trimmed.hasPrefix("//") {
       return index + 1
+    } else if let end = blockCommentEnd(lines, at: index), restAfterImportKeyword(String(end.rest)) == nil {
+      return end.line + 1
+    } else {
+      return nil
     }
+  }
+
+  /// Returns the index of the line where the block comment at a line ends, when an import follows the comment on that
+  /// line, as in `/* views */ import UIKit`.
+  ///
+  /// - Parameters:
+  ///   - lines: The file's lines.
+  ///   - index: The index of the line.
+  /// - Returns: The index of the line where the comment ends, `nil` when the line doesn't start a block comment or no
+  ///   import follows it.
+  private static func importAfterBlockComment(_ lines: [String], at index: Int) -> Int? {
+    guard let end = blockCommentEnd(lines, at: index), restAfterImportKeyword(String(end.rest)) != nil else {
+      return nil
+    }
+    return end.line
+  }
+
+  /// Returns where the block comment at a line ends.
+  ///
+  /// - Parameters:
+  ///   - lines: The file's lines.
+  ///   - index: The index of the line.
+  /// - Returns: The index of the line where the comment ends, the last line when it doesn't end, with the rest of that
+  ///   line after the comment, `nil` for a line that doesn't start a block comment.
+  private static func blockCommentEnd(_ lines: [String], at index: Int) -> (line: Int, rest: Substring)? {
+    let trimmed = lines[index].drop(while: \.isWhitespace)
     guard trimmed.hasPrefix("/*") else {
       return nil
     }
-    if trimmed.dropFirst(2).contains("*/") {
-      return index + 1
-    }
-    var end = index + 1
-    while end < lines.count, !lines[end].contains("*/") {
+    var end = index
+    var text = trimmed.dropFirst(2)
+    var close = text.range(of: "*/")
+    while close == nil, end + 1 < lines.count {
       end += 1
+      text = Substring(lines[end])
+      close = text.range(of: "*/")
     }
-    return min(end + 1, lines.count)
+    guard let close else {
+      return (end, "")
+    }
+    return (end, text[close.upperBound...])
   }
 
   /// Returns whether a line is blank.
@@ -589,5 +629,8 @@ enum ImportGroups {
 
     /// Why an import that can't be read makes the imports unsupported.
     static let unreadableImportReason = "a line with more than an import and a comment"
+
+    /// Why an import after a block comment on its line makes the imports unsupported.
+    static let importAfterBlockCommentReason = "an import after a block comment on its line"
   }
 }
