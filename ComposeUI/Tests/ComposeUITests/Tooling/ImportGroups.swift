@@ -170,7 +170,8 @@ enum ImportGroups {
   /// that contain only imports, and after the `#if` lines that wrap the whole file, whose `#endif` lines end it. Those
   /// stay above the imports with a blank line after them, and their `#endif` lines get a blank line before them. Another
   /// `#if` before the imports, such as one around a platform's part of the file, starts the code, which leaves the file
-  /// alone. A comment between imports, or an `#if` block that imports modules of different groups, makes the imports
+  /// alone. A comment in an `#if` block of imports moves with the block. A comment between imports, an `#if` block that
+  /// imports modules of different groups, or a line with more than an import and a comment, makes the imports
   /// unsupported, as the grouping doesn't know where it belongs.
   ///
   /// - Parameters:
@@ -220,6 +221,8 @@ enum ImportGroups {
           codeStart = index
           break scan
         }
+      } else if restAfterImportKeyword(line) != nil {
+        return .unsupported(line: index + 1, reason: "a line with more than an import and a comment")
       } else {
         codeStart = index
         break scan
@@ -321,22 +324,9 @@ enum ImportGroups {
   /// - Parameter line: The line.
   /// - Returns: The module, with its submodules, such as `UIKit.UIGestureRecognizerSubclass`.
   private static func importedModule(_ line: String) -> String? {
-    var rest = line.drop(while: \.isWhitespace)
-    while rest.first == "@" {
-      rest = rest.dropFirst().drop(while: isIdentifierCharacter)
-      if rest.first == "(" {
-        guard let close = rest.firstIndex(of: ")") else {
-          return nil
-        }
-        rest = rest[rest.index(after: close)...]
-      }
-      rest = rest.drop(while: \.isWhitespace)
-    }
-
-    guard rest.hasPrefix("import"), rest.dropFirst("import".count).first?.isWhitespace == true else {
+    guard var rest = restAfterImportKeyword(line) else {
       return nil
     }
-    rest = rest.dropFirst("import".count).drop(while: \.isWhitespace)
     for kind in Constants.importKinds where rest.hasPrefix(kind) && rest.dropFirst(kind.count).first?.isWhitespace == true {
       rest = rest.dropFirst(kind.count).drop(while: \.isWhitespace)
       break
@@ -353,14 +343,43 @@ enum ImportGroups {
       tail = tail.dropFirst(1 + component.count)
     }
     tail = tail.drop(while: \.isWhitespace)
+    if tail.hasPrefix("/*"), let close = tail.range(of: "*/") {
+      tail = tail[close.upperBound...].drop(while: \.isWhitespace)
+    }
     guard tail.isEmpty || tail.hasPrefix("//") else {
       return nil
     }
     return String(module)
   }
 
-  /// Returns the index of the `#endif` of the `#if` block at a line when the block contains only imports, `nil` when
-  /// it contains anything else or has no import.
+  /// Returns the rest of a line after its `import` keyword, `nil` for a line that doesn't start with one after its
+  /// attributes.
+  ///
+  /// - Parameter line: The line.
+  /// - Returns: The rest of the line, without its leading whitespace.
+  private static func restAfterImportKeyword(_ line: String) -> Substring? {
+    var rest = line.drop(while: \.isWhitespace)
+    while rest.first == "@" {
+      rest = rest.dropFirst().drop(while: isIdentifierCharacter)
+      if rest.first == "(" {
+        guard let close = rest.firstIndex(of: ")") else {
+          return nil
+        }
+        rest = rest[rest.index(after: close)...]
+      }
+      rest = rest.drop(while: \.isWhitespace)
+    }
+
+    guard rest.hasPrefix("import"), rest.dropFirst("import".count).first?.isWhitespace == true else {
+      return nil
+    }
+    return rest.dropFirst("import".count).drop(while: \.isWhitespace)
+  }
+
+  /// Returns the index of the `#endif` of the `#if` block at a line when the block contains only imports and comments,
+  /// `nil` when it contains anything else or has no import.
+  ///
+  /// The block moves whole, so a comment in it belongs to it, unlike a comment between imports.
   ///
   /// - Parameters:
   ///   - lines: The file's lines.
@@ -369,7 +388,8 @@ enum ImportGroups {
   private static func endOfImportBlock(_ lines: [String], from start: Int) -> Int? {
     var depth = 0
     var hasImport = false
-    for index in start ..< lines.count {
+    var index = start
+    while index < lines.count {
       let line = lines[index]
       if isDirective(line, "#if") {
         depth += 1
@@ -378,13 +398,15 @@ enum ImportGroups {
         if depth == 0 {
           return hasImport ? index : nil
         }
-      } else if isDirective(line, "#elseif") || isDirective(line, "#else") || isBlank(line) {
+      } else if let next = lineAfterComment(lines, at: index) {
+        index = next
         continue
       } else if importedModule(line) != nil {
         hasImport = true
-      } else {
+      } else if !isDirective(line, "#elseif"), !isDirective(line, "#else") {
         return nil
       }
+      index += 1
     }
     return nil
   }
@@ -406,13 +428,16 @@ enum ImportGroups {
       let line = lines[index]
       // a line with an odd number of `"""` opens or closes a multiline string literal
       let togglesString = line.components(separatedBy: "\"\"\"").count.isMultiple(of: 2)
-      if isInString || togglesString {
-        isInString = isInString != togglesString
+      if isInString {
+        isInString = !togglesString
         index += 1
       } else if let next = lineAfterComment(lines, at: index) {
+        // comments are skipped before the quotes are counted, as the quotes in a comment don't open a string
         index = next
       } else {
-        if isDirective(line, "#if") {
+        if togglesString {
+          isInString = true
+        } else if isDirective(line, "#if") {
           depth += 1
         } else if isDirective(line, "#endif") {
           depth -= 1

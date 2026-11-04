@@ -373,6 +373,88 @@ class ImportGroupsTests: XCTestCase {
     """)
   }
 
+  func test_group_ifBlockWithAComment_movesWhole() {
+    // given: an #if block of imports with a comment in it, between an external framework and a system framework
+    let text = """
+    import ChouTi
+    #if canImport(UIKit)
+    // for the gesture recognizer's subclass hooks
+    import UIKit.UIGestureRecognizerSubclass
+    #endif
+    import Foundation
+
+    let x = 1
+    """
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: the block moves whole, with its comment, to the system group
+    expect(outcome) == .grouped("""
+    #if canImport(UIKit)
+    // for the gesture recognizer's subclass hooks
+    import UIKit.UIGestureRecognizerSubclass
+    #endif
+    import Foundation
+
+    import ChouTi
+
+    let x = 1
+    """)
+  }
+
+  func test_group_blockCommentAfterAnImport_staysWithIt() {
+    // given: an external framework with a block comment after it, before a system framework
+    let text = """
+    import ChouTi /* the helpers */
+    import Foundation
+
+    let x = 1
+    """
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: the comment stays with its import
+    expect(outcome) == .grouped("""
+    import Foundation
+
+    import ChouTi /* the helpers */
+
+    let x = 1
+    """)
+  }
+
+  func test_group_fileWideIf_withQuotesInAComment_endsAtItsEndif() {
+    // given: a file in an #if block, with three quotes in a documentation comment
+    let text = #"""
+    #if canImport(UIKit)
+    import ChouTiTest
+    import UIKit
+
+    /// Use """ for a multiline string.
+    let x = 1
+    #endif
+    """#
+
+    // when: grouping its imports
+    let outcome = ImportGroups.group(text, config: Constants.config)
+
+    // then: the quotes in the comment don't open a string, so the #if wraps the file, and the imports are grouped
+    expect(outcome) == .grouped(#"""
+    #if canImport(UIKit)
+
+    import UIKit
+
+    import ChouTiTest
+
+    /// Use """ for a multiline string.
+    let x = 1
+
+    #endif
+    """#)
+  }
+
   func test_group_groupedText_isUnchanged() {
     // given: files whose imports are out of order
     let texts = [
@@ -475,6 +557,24 @@ class ImportGroupsTests: XCTestCase {
 
     // then: the imports can't be grouped, as the comment's place is unknown
     expect(ImportGroups.group(text, config: Constants.config)) == .unsupported(line: 2, reason: "a comment between imports")
+  }
+
+  func test_group_lineWithMoreThanAnImport_isUnsupported() {
+    // given: two imports on the first line, and an import and a declaration on the line after an import
+    let twoImports = """
+    import ChouTi; import ChouTiTest
+    import Foundation
+
+    let x = 1
+    """
+    let importAndCode = """
+    import Foundation
+    import ChouTi; let x = 1
+    """
+
+    // then: the imports can't be grouped, as the things on a line can belong in different places
+    expect(ImportGroups.group(twoImports, config: Constants.config)) == .unsupported(line: 1, reason: "a line with more than an import and a comment")
+    expect(ImportGroups.group(importAndCode, config: Constants.config)) == .unsupported(line: 2, reason: "a line with more than an import and a comment")
   }
 
   func test_group_ifBlockOfModulesOfDifferentGroups_isUnsupported() {
