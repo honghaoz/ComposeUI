@@ -38,7 +38,7 @@ permissions:
 
 env:
   TERM: xterm-256color
-  DEVELOPER_DIR: /Applications/Xcode_${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_${{ (!github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
   TIME_THRESHOLD: 10
 
 jobs:
@@ -53,7 +53,8 @@ jobs:
           - platform: iOS
             instructions-threshold: 1.5
     timeout-minutes: 60
-    runs-on: ${{ vars.SELF_HOSTED_MACOS || vars.MACOS }}
+    # the benchmarks run on the self-hosted Mac, except for pull requests from forks, whose code shouldn't run there
+    runs-on: ${{ (!github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -65,7 +66,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: benchmark-${{ matrix.platform }}
-          xcode-version: ${{ (vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
+          xcode-version: ${{ (!github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
       - name: Compare against the base
