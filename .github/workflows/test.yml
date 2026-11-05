@@ -121,8 +121,9 @@ jobs:
         timeout-minutes: ${{ runner.environment == 'self-hosted' && 10 || 30 }}
         run: make test-hosted-ci OS=${{ matrix.platform }} PHASE=test -C ComposeUI
 
-      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
-      - name: Shut down simulators
+      # shut down the job's simulator only on self-hosted runners to avoid it taking memory and processor time after the job.
+      # other simulators on the machine may be in use, so they stay as they are.
+      - name: Shut down simulator
         if: ${{ always() && runner.environment == 'self-hosted' }}
         continue-on-error: true
-        run: xcrun simctl shutdown all
+        run: make test-ci OS=${{ matrix.platform }} PHASE=shutdown -C ComposeUI

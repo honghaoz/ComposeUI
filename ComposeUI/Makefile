@@ -67,6 +67,10 @@ test-hosted-ci: # Run the hosted tests with CI's DerivedData path. Usage: make t
 benchmark: # Run the benchmarks in release configuration. Usage: make benchmark [PLATFORM=iOS] [FILTER=RenderPerformanceTests].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-run.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",)
 
+.PHONY: benchmark-shutdown
+benchmark-shutdown: # Shut down the simulator that the benchmarks of a platform run on, and no other. Usage: make benchmark-shutdown [PLATFORM=iOS].
+	@"$(REPO_ROOT)/scripts/benchmark/benchmark-shutdown.sh" $(if $(PLATFORM),--platform "$(PLATFORM)",)
+
 .PHONY: benchmark-compare
 benchmark-compare: # Compare the benchmarks against a base revision on this machine. Usage: make benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=AdditivePathPerformanceTests] [ROUNDS=5] [TIME_THRESHOLD=20] [INSTRUCTIONS_THRESHOLD=1] [SUMMARY=report.md].
 	@"$(REPO_ROOT)/scripts/benchmark/benchmark-compare.sh" --base "$(or $(BASE),origin/master)" $(if $(PLATFORM),--platform "$(PLATFORM)",) $(if $(FILTER),--filter "$(FILTER)",) --rounds "$(or $(ROUNDS),5)" --time-threshold "$(or $(TIME_THRESHOLD),20)" --instructions-threshold "$(or $(INSTRUCTIONS_THRESHOLD),1)" $(if $(SUMMARY),--summary "$(SUMMARY)",)

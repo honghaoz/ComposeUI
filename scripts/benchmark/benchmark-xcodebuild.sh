@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Builds and runs the benchmarks on a simulator with xcodebuild, for benchmark-run.sh and benchmark-compare.sh, which
-# source it.
+# Builds and runs the benchmarks on a simulator with xcodebuild, for benchmark-run.sh, benchmark-compare.sh and
+# benchmark-shutdown.sh, which source it.
 #
 # `swift test` runs tests only on the Mac, so the benchmarks run on a simulator through xcodebuild, with the settings of
 # the macOS runs: a release build with testability, DEBUG and COMPOSEUI_BENCHMARK, see benchmark_build_for_simulator,
