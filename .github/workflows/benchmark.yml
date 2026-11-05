@@ -81,8 +81,9 @@ jobs:
           INSTRUCTIONS_THRESHOLD: ${{ matrix.instructions-threshold }}
         run: make benchmark-compare -C ComposeUI BASE="$BASE" PLATFORM="$PLATFORM" TIME_THRESHOLD="$TIME_THRESHOLD" INSTRUCTIONS_THRESHOLD="$INSTRUCTIONS_THRESHOLD" SUMMARY="$GITHUB_STEP_SUMMARY"
 
-      # shut down simulators only on self-hosted runners to avoid simulators taking memory and processor time after the job.
-      - name: Shut down simulators
+      # shut down the job's simulator only on self-hosted runners to avoid it taking memory and processor time after the job.
+      # other simulators on the machine may be in use, so they stay as they are.
+      - name: Shut down simulator
         if: ${{ always() && runner.environment == 'self-hosted' }}
         continue-on-error: true
-        run: xcrun simctl shutdown all
+        run: make benchmark-shutdown PLATFORM=${{ matrix.platform }} -C ComposeUI
