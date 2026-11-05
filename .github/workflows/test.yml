@@ -81,9 +81,10 @@ jobs:
         # a manual run of one simulator platform tests only that platform
         platform: ${{ fromJSON(contains(fromJSON('["iOS", "tvOS", "visionOS"]'), inputs.platform) && format('["{0}"]', inputs.platform) || '["iOS", "tvOS", "visionOS"]') }}
     timeout-minutes: 30
-    runs-on: ${{ inputs.runner || (!inputs.xcode-version && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
+    # iOS and visionOS run on the self-hosted Mac, except for pull requests from forks, whose code shouldn't run there.
+    runs-on: ${{ inputs.runner || (!inputs.xcode-version && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && !github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS) || vars.MACOS }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && !github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -91,7 +92,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           kind: test-${{ matrix.platform }}
-          xcode-version: ${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
+          xcode-version: ${{ inputs.xcode-version || (!inputs.runner && contains(fromJSON('["iOS", "visionOS"]'), matrix.platform) && !github.event.pull_request.head.repo.fork && vars.SELF_HOSTED_MACOS && vars.SELF_HOSTED_XCODE_VERSION) || vars.XCODE_VERSION }}
       - name: Bootstrap
         uses: ./.github/actions/bootstrap
 
