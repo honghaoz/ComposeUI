@@ -405,6 +405,40 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset.y) > offset.y
   }
 
+  func test_layoutSettingADifferentOffsetDuringAGlideFrame_stopsTheGlide() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view in a window, gliding its content down by 200 points, whose next layout sets a different
+    // offset
+    let window = TestWindow()
+    let scrollView = LayoutActionScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 10000)
+    window.contentView().addSubview(scrollView)
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+    scrollView.nextLayoutAction = {
+      scrollView.contentOffset = CGPoint(x: 0, y: 500)
+    }
+
+    // when: a frame moves the content, which lays the scroll view out
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the layout's offset holds
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 500)
+
+    // when: the next frame steps the animation
+    animation.step(at: Constants.startTime + 0.07)
+
+    // then: the glide stops, and the content stays where the layout set it
+    expect(animation.isRunning) == false
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 500)
+    withExtendedLifetime(window) {}
+  }
+
   func test_scrollingDisabled_bringsStretchedContentIntoTheRangeAndStops() throws {
     guard #available(macOS 14.0, *) else {
       return
@@ -1154,6 +1188,21 @@ class KeyboardScrollAnimationTests: XCTestCase {
     window.contentView().addSubview(scrollView)
     window.makeFirstResponder(scrollView)
     return (window, scrollView)
+  }
+
+  /// A scroll view that runs an action once, at its next layout.
+  private final class LayoutActionScrollView: ScrollView {
+
+    /// The action to run at the next layout.
+    var nextLayoutAction: (() -> Void)?
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+
+      let action = nextLayoutAction
+      nextLayoutAction = nil
+      action?()
+    }
   }
 
   // MARK: - Constants

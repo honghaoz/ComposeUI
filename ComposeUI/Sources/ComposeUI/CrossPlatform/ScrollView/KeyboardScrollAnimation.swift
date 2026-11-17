@@ -216,8 +216,11 @@ final class KeyboardScrollAnimation: NSObject {
     } else {
       // the content shows on whole pixels on each frame, as AppKit's own scrolling shows it, so that text stays sharp,
       // and past an end while it stretches
-      scrollView.setContentOffsetExactly(offset.rounded(toPixelSize: range.pixelSize))
-      lastContentOffset = scrollView.contentOffset
+      let roundedOffset = offset.rounded(toPixelSize: range.pixelSize)
+      scrollView.setContentOffsetExactly(roundedOffset)
+      // the offset is kept as set, not read back: setting it lays the scroll view out, and an offset that the layout
+      // sets is something else scrolling, which stops the animation at the next frame
+      lastContentOffset = roundedOffset
     }
   }
 
