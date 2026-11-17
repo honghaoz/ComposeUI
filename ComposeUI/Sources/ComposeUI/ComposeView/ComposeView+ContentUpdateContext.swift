@@ -72,7 +72,8 @@ extension ComposeView {
     ///
     /// On UIKit, it's the animation that UIKit runs the layout in, such as a rotation's, see `UIView.inheritedResizeTiming()`.
     /// For a view nested in a `ComposeView`, it's the timing that the parent's render pass animated its frame with.
-    /// A refresh that such a layout performs follows it too.
+    /// A refresh performed while the resize is applied follows it too, such as the pending refresh that the layout
+    /// performs, or the refresh that a parent's update performs, as `ComposeViewNode`'s does.
     let resizeTiming: AnimationTiming?
 
     /// Creates the context of an update.

@@ -153,6 +153,35 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     parent.layer.removeAllAnimations()
   }
 
+  func test_animatedLayout_parentPendingRefresh_nestedNodeFollowsTheResize() throws {
+    // given: a nested view node filling its parent, showing a row, with an animated refresh pending on the parent
+    var context: RenderableUpdateContext?
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50)
+          .onUpdate { _, update in
+            context = update
+          }
+      }
+    }
+    parent.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    parent.refresh(animated: false)
+    parent.setNeedsRefresh(animated: true)
+
+    // when: resizing the parent with a layout in an animation block, which performs the refresh
+    UIView.animate(withDuration: 0.5) {
+      parent.frame.size.width = 300
+      parent.layoutIfNeeded()
+    }
+
+    // then: the refresh that the node's update performs follows the parent's resize
+    expect(context?.updateType) == .refresh
+    expect(context?.animationTiming) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    expect(context?.newFrame.width) == 300
+    parent.layer.removeAllAnimations()
+  }
+
   func test_animatedLayout_duringAnotherRenderPass_followsTheResizeAfterThePass() throws {
     // given: a view showing a row, resized in an animation block, and another view whose render pass lays it out in an
     // animation block. a render pass disables actions, so the resize animates before the pass, in the same transaction
@@ -296,6 +325,51 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       expect(row?.frame.width) == 250
       row?.removeAllAnimations()
       (nested.layer as CALayer?)?.removeAllAnimations()
+    }
+  }
+
+  func test_animatedRefresh_nestedNodeFollowsItsFrameAnimation() throws {
+    for isAnimated in [true, false] {
+      // given: a nested view node with an update animation, showing a row
+      let timing = AnimationTiming.linear(duration: 10)
+      var leading: CGFloat = 0
+      var width: CGFloat = 100
+      var context: RenderableUpdateContext?
+      let parent = ComposeView {
+        HStack(spacing: 0) {
+          Spacer(width: leading)
+          ComposeViewNode {
+            ColorNode(.red)
+              .frame(width: .flexible, height: 50)
+              .onUpdate { _, update in
+                context = update
+              }
+          }
+          .frame(width: width, height: 100)
+          .animation(timing)
+          Spacer()
+        }
+      }
+      parent.frame = CGRect(x: 0, y: 0, width: 300, height: 100)
+      parent.refresh(animated: false)
+
+      // when: a refresh widens the nested view
+      width = 200
+      parent.refresh(animated: isAnimated)
+
+      // then: the refresh that the node's update performs follows the frame animation, and a non-animated one doesn't
+      expect(context?.updateType, "animated \(isAnimated)") == .refresh
+      expect(context?.animationTiming, "animated \(isAnimated)") == (isAnimated ? timing : nil)
+      expect(context?.newFrame.width, "animated \(isAnimated)") == 200
+
+      // when: a refresh moves the nested view without resizing it
+      leading = 50
+      parent.refresh(animated: isAnimated)
+
+      // then: its content has no resize to follow
+      expect(context?.updateType, "animated \(isAnimated)") == .refresh
+      expect(context?.animationTiming, "animated \(isAnimated)") == nil
+      expect(context?.newFrame.width, "animated \(isAnimated)") == 200
     }
   }
 }
