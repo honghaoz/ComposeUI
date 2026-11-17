@@ -439,6 +439,29 @@ class KeyboardScrollAnimationTests: XCTestCase {
     withExtendedLifetime(window) {}
   }
 
+  func test_glideInAMagnifiedScrollView_keepsRunningAcrossFrames() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    for magnification: CGFloat in [1.1, 1.3] {
+      // given: a scroll view magnified by a scale at which the clip view keeps a set offset with floating-point noise
+      let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+      scrollView.magnification = magnification
+      let animation = KeyboardScrollAnimation(scrollView: scrollView)
+      defer { animation.stop() }
+
+      // when: a glide steps two frames
+      animation.glide(toward: .down, by: 200, at: Constants.startTime)
+      animation.step(at: Constants.startTime + 0.01)
+      animation.step(at: Constants.startTime + 0.02)
+
+      // then: the glide goes on
+      expect(animation.isRunning) == true
+      withExtendedLifetime(window) {}
+    }
+  }
+
   func test_scrollingDisabled_bringsStretchedContentIntoTheRangeAndStops() throws {
     guard #available(macOS 14.0, *) else {
       return

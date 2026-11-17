@@ -167,7 +167,7 @@ final class KeyboardScrollAnimation: NSObject {
   ///
   /// - Parameter time: The time of the frame that shows the content.
   func step(at time: CFTimeInterval) {
-    guard var physics, scrollView.contentOffset == lastContentOffset else {
+    guard var physics, !somethingElseScrolled else {
       stop()
       return
     }
@@ -265,11 +265,20 @@ final class KeyboardScrollAnimation: NSObject {
   /// Returns the content offset that a new press or glide starts from, which stops the motions first when something
   /// else scrolled the scroll view, so that the new one starts from where the content is, at rest.
   private func contentOffsetForNewMotion() -> CGPoint {
-    let contentOffset = scrollView.contentOffset
-    if contentOffset != lastContentOffset {
+    if somethingElseScrolled {
       stop()
     }
-    return contentOffset
+    return scrollView.contentOffset
+  }
+
+  /// Whether something else moved the content away from the offset that the animation set last, to another pixel.
+  private var somethingElseScrolled: Bool {
+    // a magnified clip view keeps a set offset with floating-point noise, so an offset within half a pixel of the last
+    // one is still the animation's
+    let contentOffset = scrollView.contentOffset
+    let pixelSize = scrollView.pixelSize
+    return abs(contentOffset.x - lastContentOffset.x) >= pixelSize.width / 2
+      || abs(contentOffset.y - lastContentOffset.y) >= pixelSize.height / 2
   }
 
   /// Whether the keyboard focus is in the scroll view, where the key going up reaches it.
