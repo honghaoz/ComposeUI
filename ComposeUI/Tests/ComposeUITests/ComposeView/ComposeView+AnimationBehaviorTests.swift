@@ -597,13 +597,13 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
     ]
     let both = ComposeView.AnimationDecision.all
     let neither = ComposeView.AnimationDecision.disabled
-    let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
+    let withoutUpdateAnimations = ComposeView.AnimationDecision.withoutUpdateAnimations
 
-    // then: refresh controls both decisions, while all bounds changes allow only transitions
+    // then: refresh controls both decisions, while all bounds changes allow transitions and following the resize, without update animations
     expect(
       renderTypes.map { ComposeView.AnimationBehavior.default.animationDecision(renderType: $0, contentView: view) }
     ) == [
-      both, neither, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly, transitionsOnly,
+      both, neither, withoutUpdateAnimations, withoutUpdateAnimations, withoutUpdateAnimations, withoutUpdateAnimations, withoutUpdateAnimations, withoutUpdateAnimations,
     ]
 
     // then: disabled behavior permits neither animation type
@@ -635,8 +635,10 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
   func test_animationDecision_capped() {
     // given: every combination of a view's own decision and its host's decision
     let decisions = [false, true].flatMap { transitions in
-      [false, true].map { animations in
-        ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations)
+      [false, true].flatMap { animations in
+        [false, true].map { followsResize in
+          ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations, followsResize: followsResize)
+        }
       }
     }
 
@@ -645,7 +647,8 @@ class ComposeView_AnimationBehaviorTests: XCTestCase {
       for host in decisions {
         expect(own.capped(by: host)) == ComposeView.AnimationDecision(
           allowsTransitions: own.allowsTransitions && host.allowsTransitions,
-          allowsAnimations: own.allowsAnimations && host.allowsAnimations
+          allowsAnimations: own.allowsAnimations && host.allowsAnimations,
+          followsResize: own.followsResize && host.followsResize
         )
       }
     }

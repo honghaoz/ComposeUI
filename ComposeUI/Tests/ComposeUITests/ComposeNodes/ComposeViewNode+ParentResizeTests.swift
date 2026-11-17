@@ -128,14 +128,14 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
 
       // then: every nested view lays out for its new size within the parent's render pass, capped by the parent's
       // decision, so the reused row snaps while the newly visible row runs its insert transition
-      let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
+      let withoutUpdateAnimations = ComposeView.AnimationDecision.withoutUpdateAnimations
       for level in 0 ..< nestingDepth {
         let child = originalViews[level]
         expect(nestedViews[level]) === child
         expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
         expect(child.layer().animation(forKey: "bounds.size")) == nil
         expect(nestedContexts[level]?.updateType) == .boundsChange
-        expect(nestedContexts[level]?.animationDecision) == transitionsOnly
+        expect(nestedContexts[level]?.animationDecision) == withoutUpdateAnimations
         expect(renderTypes[level]) == .boundsChange(
           previousBounds: CGRect(x: 0, y: 0, width: 100, height: 100),
           bounds: CGRect(x: 0, y: 0, width: 160, height: 100)
@@ -147,14 +147,14 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
       expect(reusedLayer.animationKeys()) == nil
       expect(layerContexts[0]?.updateType) == .boundsChange
       expect(layerContexts[0]?.animationTiming) == nil
-      expect(layerContexts[0]?.animationDecision) == transitionsOnly
+      expect(layerContexts[0]?.animationDecision) == withoutUpdateAnimations
       let insertedLayer = try unwrap(layers[1])
       expect(insertedLayer.frame) == CGRect(x: 0, y: 60, width: 160, height: 40)
       expect(insertedLayer.backgroundColor) == Color.blue.cgColor
       expect(insertedLayer.opacity) == 1
       expect(insertedLayer.animationKeys()) == ["opacity"]
       expect(layerContexts[1]?.updateType) == .insert
-      expect(layerContexts[1]?.animationDecision) == transitionsOnly
+      expect(layerContexts[1]?.animationDecision) == withoutUpdateAnimations
 
       // when: the nested views lay out on their own afterwards
       layerContexts.removeAll()
@@ -390,7 +390,7 @@ class ComposeViewNode_ParentResizeTests: XCTestCase {
     expect(layerContexts.count) == 1
     expect(layerContexts.first?.updateType) == .refresh
     expect(layerContexts.first?.animationTiming) == nil
-    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(layerContexts.first?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
 
     // when: the nested view later refreshes on its own with a new width
     childRenderTypes.removeAll()

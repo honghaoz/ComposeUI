@@ -42,7 +42,12 @@ extension ComposeView {
       case refresh(isAnimated: Bool)
 
       /// A bounds update reusing the content of the last refresh.
-      case boundsChange
+      ///
+      /// - Parameter resizeTiming: The timing of the animation that the view resizes with, which the reused renderables
+      ///   follow, or `nil` when the view resizes without one, or with one that the timing can't reproduce. On UIKit,
+      ///   the animation that UIKit runs the layout in, such as a rotation's, see `UIView.inheritedResizeTiming()`, and
+      ///   for a view nested in a `ComposeView`, the timing that the parent's render pass animated its frame with.
+      case boundsChange(resizeTiming: AnimationTiming?)
     }
 
     /// The root layout node used for this update.

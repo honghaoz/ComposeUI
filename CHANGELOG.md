@@ -4,7 +4,7 @@
 
 ### Breaking Changes
 
-- With the default animation behavior, bounds changes no longer animate the updates of reused renderables, and insert and remove transitions also run on resizes and the first layout. ([#24](https://github.com/honghaoz/ComposeUI/pull/24))
+- With the default animation behavior, bounds changes no longer animate the updates of reused renderables, except with the view's own resize animation when the resize animates, such as a rotation or a `layoutIfNeeded()` in a UIKit animation block, so the content keeps up with the view. Insert and remove transitions also run on resizes and the first layout. ([#24](https://github.com/honghaoz/ComposeUI/pull/24), [#23](https://github.com/honghaoz/ComposeUI/issues/23))
 - Replaced `ComposeView.RenderType.scroll` with `.boundsChange(previousBounds:bounds:)`, and merged `RenderableUpdateType.scroll` into `.boundsChange`. A scroll is a bounds change that keeps the size. ([#24](https://github.com/honghaoz/ComposeUI/pull/24))
 - Removed `RenderableUpdateType.requiresFullUpdate`. Handle each update type as the renderable needs. ([#14](https://github.com/honghaoz/ComposeUI/pull/14))
 - Drop and inner shadow paths follow the renderable's size instead of the viewport's, and `DropShadowLayer.update(...)` and `InnerShadowLayer.update(...)` take `paths` or `path`, like the nodes. Request a refresh when a path's other inputs change. ([#24](https://github.com/honghaoz/ComposeUI/pull/24), [#49](https://github.com/honghaoz/ComposeUI/pull/49))

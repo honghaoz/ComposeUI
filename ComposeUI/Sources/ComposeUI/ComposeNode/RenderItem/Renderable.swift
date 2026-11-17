@@ -204,12 +204,14 @@ public enum Renderable {
   /// - Parameters:
   ///   - frame: The frame to apply.
   ///   - animationTiming: The timing to animate the change with, or `nil` to apply it without starting an animation.
-  func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) {
+  /// - Returns: Whether the frame animates with the timing.
+  @discardableResult
+  func updateFrame(_ frame: CGRect, animationTiming: AnimationTiming?) -> Bool {
     // re-applying an unchanged frame is wasteful: without a timing it dirties the renderable and on AppKit posts a
     // frame-change notification that forces a layout pass, with a timing it adds zero-delta animations that live for
     // the timing's duration and pile up under repeated passes.
     guard !hasFrame(frame) else {
-      return
+      return false
     }
 
     #if os(visionOS)
@@ -219,7 +221,7 @@ public enum Renderable {
     case .view(let view):
       guard view.wrapperLayer == nil else {
         setFrame(frame)
-        return
+        return false
       }
     case .layer:
       break
@@ -233,13 +235,14 @@ public enum Renderable {
     if let animationTiming {
       if !layer.hasFrame(frame) {
         layer.animateFrame(to: frame, timing: animationTiming)
-        return
+        return true
       }
     } else if let animationKeys = layer.unbridgedAnimationKeys {
       layer.retargetFrame(to: frame, animationKeys: animationKeys)
-      return
+      return false
     }
     setFrame(frame)
+    return false
   }
 
   /// Add the renderable as a sublayer to the parent view.

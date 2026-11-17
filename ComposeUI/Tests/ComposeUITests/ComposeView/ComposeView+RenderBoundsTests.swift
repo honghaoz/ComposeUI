@@ -96,7 +96,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     var expectedContext = ComposeView.ContentUpdateContext(
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
-      updateType: .boundsChange,
+      updateType: .boundsChange(resizeTiming: nil),
       previousRenderBounds: nil,
       bounds: CGRect(x: 0, y: 0, width: 120, height: 80),
       preparedAnimationDecision: .all
@@ -129,7 +129,7 @@ class ComposeView_RenderBoundsTests: XCTestCase {
     expectedContext = ComposeView.ContentUpdateContext(
       contentNode: initialContext.contentNode,
       contentEvaluation: initialContext.contentEvaluation,
-      updateType: .boundsChange,
+      updateType: .boundsChange(resizeTiming: nil),
       previousRenderBounds: CGRect(origin: .zero, size: visibleSize),
       bounds: CGRect(x: 0, y: 10, width: 120, height: 80),
       preparedAnimationDecision: .all
