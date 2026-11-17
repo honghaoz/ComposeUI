@@ -83,9 +83,6 @@ public extension ScrollView {
 
   #if canImport(UIKit)
   /// Stops any ongoing scroll deceleration, freezing the scroll view at its current position.
-  ///
-  /// Setting `contentOffset` moves the content but leaves a deceleration or an animated scroll running, while this stops
-  /// them.
   func stopDecelerating() {
     setContentOffset(contentOffset, animated: false)
   }

@@ -360,6 +360,51 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset.y) > 500
   }
 
+  func test_settingADifferentOffsetDuringAGlide_stopsTheGlide() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view, gliding its content down by 200 points
+    let (_, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+    expect(animation.isRunning) == true
+
+    // when: the offset is set 20 pixels away from where the glide has the content, and a frame steps the animation
+    let offset = CGPoint(x: 0, y: scrollView.contentOffset.y + 20 * scrollView.pixelSize.height)
+    scrollView.contentOffset = offset
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the glide stops, and the content stays where the offset was set
+    expect(animation.isRunning) == false
+    expect(scrollView.contentOffset) == offset
+  }
+
+  func test_settingTheCurrentOffsetDuringAGlide_leavesTheGlideRunning() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view, gliding its content down by 200 points
+    let (_, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+
+    // when: the offset is set to where the glide has the content, and a frame steps the animation
+    let offset = scrollView.contentOffset
+    scrollView.contentOffset = offset
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the glide goes on, and moves the content on
+    expect(animation.isRunning) == true
+    expect(scrollView.contentOffset.y) > offset.y
+  }
+
   func test_scrollingDisabled_bringsStretchedContentIntoTheRangeAndStops() throws {
     guard #available(macOS 14.0, *) else {
       return

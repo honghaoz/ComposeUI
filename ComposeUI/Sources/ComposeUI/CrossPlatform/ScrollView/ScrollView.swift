@@ -54,8 +54,8 @@ open class ScrollView: NSScrollView {
   ///
   /// As on UIKit, setting it rounds the offset to the nearest pixel, and keeps it there, even outside the scrollable range.
   ///
-  /// Unlike UIKit, where setting the offset leaves a deceleration running (see `stopDecelerating()`), setting it stops a
-  /// running keyboard scroll animation.
+  /// Setting it to a different offset stops a running keyboard scroll animation, which leaves the content where it was
+  /// set.
   public var contentOffset: CGPoint {
     get {
       contentView.bounds.origin
