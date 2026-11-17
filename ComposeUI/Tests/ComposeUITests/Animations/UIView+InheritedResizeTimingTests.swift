@@ -206,6 +206,31 @@ class UIView_InheritedResizeTimingTests: XCTestCase {
     // then: the resizes disagree, so none is followed
     expect(timing) == nil
     view.layer.removeAllAnimations()
+
+    // when: resizing it in a block, then again in a block of another duration with a layout
+    UIView.animate(withDuration: 0.3) {
+      view.frame.size.width = 200
+    }
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+      timing = view.inheritedResizeTiming()
+    }
+
+    // then: the view shows the sum of both, which no one timing follows
+    expect(timing) == nil
+    view.layer.removeAllAnimations()
+
+    // when: resizing it in a block, then laying it out in a block of another duration without resizing it
+    UIView.animate(withDuration: 0.3) {
+      view.frame.size.width = 100
+    }
+    UIView.animate(withDuration: 0.5) {
+      timing = view.inheritedResizeTiming()
+    }
+
+    // then: the timing is the resize's, which the view shows
+    expect(timing) == AnimationTiming(timing: .timingFunction(0.3, CAMediaTimingFunction(name: .easeInEaseOut)))
+    view.layer.removeAllAnimations()
   }
 
   func test_resizeAnimationChecks() {
@@ -252,13 +277,11 @@ class UIView_InheritedResizeTimingTests: XCTestCase {
       view.layer.removeAllAnimations()
     }
 
-    // when: the view has other animations in an animation block: an app's own, one of another duration, a scheduled one,
-    // and another key path's
+    // when: the view has other animations in an animation block: an app's own, a scheduled one, and another key path's
     let view = makeView()
     var timing: AnimationTiming? = .linear()
     UIView.animate(withDuration: 0.5) {
       view.layer.add(basic { $0.isAdditive = false }, forKey: "own")
-      view.layer.add(basic { $0.duration = 0.3 }, forKey: "other")
       view.layer.add(basic { $0.beginTime = 0.2 }, forKey: "scheduled")
       view.layer.add(basic { $0.keyPath = "position" }, forKey: "position")
       view.layer.add(CAAnimationGroup(), forKey: "group")

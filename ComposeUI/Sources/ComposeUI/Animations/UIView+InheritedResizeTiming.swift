@@ -34,19 +34,19 @@ import UIKit
 
 extension UIView {
 
-  /// The timing of the animation that UIKit resizes the view with in the animation block that runs the current layout,
-  /// or `nil` when the view doesn't resize in one, or resizes in one whose animation the timing can't reproduce.
+  /// The timing of the animation that UIKit resizes the view with, for a layout that runs in an animation block, or
+  /// `nil` when the view doesn't resize in an animation, or resizes in one whose animation the timing can't reproduce.
   ///
   /// UIKit runs a layout inside an animation for a rotation, for `layoutIfNeeded()` in an animation block, and for the
   /// `.layoutSubviews` animation option. UIKit doesn't say how it animates, so the timing is read from the additive
-  /// `bounds.size` animation that UIKit adds to the view's layer, and is `nil` for an animation that doesn't match what
-  /// was verified on iOS 27: a delay, a repeat, an overdamped spring, a property animator, which can pause or scrub its
-  /// own animations later, or several resize animations that disagree.
+  /// `bounds.size` animations that UIKit adds to the view's layer in the current transaction, and is `nil` for what
+  /// doesn't match what was verified on iOS 27: a delay, a repeat, an overdamped spring, a property animator, which can
+  /// pause or scrub its own animations later, or several resize animations that disagree, such as those of two blocks
+  /// with different durations, whose sum the view shows.
   ///
   /// - Returns: The timing, or `nil`.
   func inheritedResizeTiming() -> AnimationTiming? {
-    let duration = UIView.inheritedAnimationDuration
-    guard duration > 0, let keys = layer.unbridgedAnimationKeys else {
+    guard UIView.inheritedAnimationDuration > 0, let keys = layer.unbridgedAnimationKeys else {
       return nil
     }
 
@@ -62,8 +62,9 @@ extension UIView {
 
       switch animation.keyPath {
       case Constants.resizeKeyPath:
-        // an animation of the app's own replaces the size, and one of another block has another duration
-        guard animation.isAdditive, animation.duration == duration else {
+        // an animation of the app's own replaces the size. each of UIKit's adds its part, so the content follows them
+        // only when they share a timing, whichever block they come from
+        guard animation.isAdditive else {
           continue
         }
         guard let animationTiming = Self.timing(of: animation), timing == nil || timing == animationTiming else {

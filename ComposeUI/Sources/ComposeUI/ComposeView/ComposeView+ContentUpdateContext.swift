@@ -42,12 +42,7 @@ extension ComposeView {
       case refresh(isAnimated: Bool)
 
       /// A bounds update reusing the content of the last refresh.
-      ///
-      /// - Parameter resizeTiming: The timing of the animation that the view resizes with, which the reused renderables
-      ///   follow, or `nil` when the view resizes without one, or with one that the timing can't reproduce. On UIKit,
-      ///   the animation that UIKit runs the layout in, such as a rotation's, see `UIView.inheritedResizeTiming()`, and
-      ///   for a view nested in a `ComposeView`, the timing that the parent's render pass animated its frame with.
-      case boundsChange(resizeTiming: AnimationTiming?)
+      case boundsChange
     }
 
     /// The root layout node used for this update.
@@ -72,6 +67,41 @@ extension ComposeView {
     /// `.all` for other updates, which caps nothing.
     let preparedAnimationDecision: AnimationDecision
 
+    /// The timing of the animation that the view resizes with, which the reused renderables follow, or `nil` when the
+    /// view doesn't resize in one, or resizes in one that the timing can't reproduce.
+    ///
+    /// On UIKit, it's the animation that UIKit runs the layout in, such as a rotation's, see `UIView.inheritedResizeTiming()`.
+    /// For a view nested in a `ComposeView`, it's the timing that the parent's render pass animated its frame with.
+    /// A refresh that such a layout performs follows it too.
+    let resizeTiming: AnimationTiming?
+
+    /// Creates the context of an update.
+    ///
+    /// - Parameters:
+    ///   - contentNode: The root layout node used for this update.
+    ///   - contentEvaluation: The content evaluation used for this update.
+    ///   - updateType: The content update type.
+    ///   - previousRenderBounds: The bounds from the last completed render pass, or nil before the first render.
+    ///   - bounds: The view's bounds when the update was made.
+    ///   - preparedAnimationDecision: The parent's animation decision handed over with prepared content.
+    ///   - resizeTiming: The timing of the animation that the view resizes with. Default is `nil`.
+    init(contentNode: LayoutCacheNode,
+         contentEvaluation: ContentEvaluation,
+         updateType: ContentUpdateType,
+         previousRenderBounds: CGRect?,
+         bounds: CGRect,
+         preparedAnimationDecision: AnimationDecision,
+         resizeTiming: AnimationTiming? = nil)
+    {
+      self.contentNode = contentNode
+      self.contentEvaluation = contentEvaluation
+      self.updateType = updateType
+      self.previousRenderBounds = previousRenderBounds
+      self.bounds = bounds
+      self.preparedAnimationDecision = preparedAnimationDecision
+      self.resizeTiming = resizeTiming
+    }
+
     // MARK: - Equatable
 
     static func == (lhs: Self, rhs: Self) -> Bool {
@@ -80,7 +110,8 @@ extension ComposeView {
         lhs.updateType == rhs.updateType &&
         lhs.previousRenderBounds == rhs.previousRenderBounds &&
         lhs.bounds == rhs.bounds &&
-        lhs.preparedAnimationDecision == rhs.preparedAnimationDecision
+        lhs.preparedAnimationDecision == rhs.preparedAnimationDecision &&
+        lhs.resizeTiming == rhs.resizeTiming
     }
 
     // MARK: - Render Type

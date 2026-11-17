@@ -974,7 +974,8 @@ open class ComposeView: BaseScrollView {
       updateType: .refresh(isAnimated: animated),
       previousRenderBounds: lastRenderBounds,
       bounds: CGRect(origin: contentOffset, size: bounds.size),
-      preparedAnimationDecision: preparedContent?.animationDecision ?? .all
+      preparedAnimationDecision: preparedContent?.animationDecision ?? .all,
+      resizeTiming: pendingRefreshResizeTiming
     )
 
     // cancel the pending refresh if there is any to avoid double rendering
@@ -991,6 +992,10 @@ open class ComposeView: BaseScrollView {
   }
 
   private var pendingRefresh: PendingRefresh?
+
+  /// The timing of the resize that the layout performing the pending refresh follows, which the refresh's pass follows
+  /// too, see `renderBoundsChangeIfNeeded(resizeTiming:)`.
+  private var pendingRefreshResizeTiming: AnimationTiming?
 
   /// Requests a refresh of the content.
   ///
@@ -1045,8 +1050,7 @@ open class ComposeView: BaseScrollView {
   /// the parent in the same render pass and, like prepared content, never animates more than the parent's animation
   /// decision allows (see `render()`).
   ///
-  /// - Parameter resizeTiming: The timing of the animation that the view resizes with, see
-  ///   `ContentUpdateContext.ContentUpdateType.boundsChange(resizeTiming:)`.
+  /// - Parameter resizeTiming: The timing of the animation that the view resizes with, see `ContentUpdateContext.resizeTiming`.
   private func renderBoundsChangeIfNeeded(resizeTiming: AnimationTiming?) {
     guard !isRendering else {
       // a layout during this view's own render pass has nothing to do: the pass reads the bounds itself, and checks them
@@ -1056,16 +1060,20 @@ open class ComposeView: BaseScrollView {
 
     guard canStartRenderPass else {
       // a layout during another view's render pass runs after that pass, on the next run loop iteration like a
-      // deferred refresh
+      // deferred refresh. the resize's timing is passed on, since it can't be read then, so that the content follows
+      // the resize a turn late instead of snapping
       onNextRunLoop { [weak self] in
-        self?.renderBoundsChangeIfNeeded(resizeTiming: nil)
+        self?.renderBoundsChangeIfNeeded(resizeTiming: resizeTiming)
       }
       return
     }
 
     guard pendingRefresh == nil else {
-      // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh
+      // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh.
+      // the refresh lays the content out for the resized bounds too, so it follows the resize as a bounds change would
+      pendingRefreshResizeTiming = resizeTiming
       performPendingRefresh()
+      pendingRefreshResizeTiming = nil
       return
     }
 
@@ -1080,10 +1088,11 @@ open class ComposeView: BaseScrollView {
       contentUpdateContext = ContentUpdateContext(
         contentNode: contentNode,
         contentEvaluation: contentEvaluation,
-        updateType: .boundsChange(resizeTiming: resizeTiming),
+        updateType: .boundsChange,
         previousRenderBounds: lastRenderBounds,
         bounds: CGRect(origin: contentOffset, size: bounds.size),
-        preparedAnimationDecision: .all
+        preparedAnimationDecision: .all,
+        resizeTiming: resizeTiming
       )
     }
 
@@ -1572,15 +1581,13 @@ open class ComposeView: BaseScrollView {
 
     // reused renderables follow the view's resize animation in place of their own update animations, as plain subviews
     // do, so that the content keeps up with the view in either case
+    let resizeTiming = animationDecision.followsResize ? context.resizeTiming : nil
     let updateType: RenderableUpdateType
-    let resizeTiming: AnimationTiming?
     switch context.updateType {
     case .refresh:
       updateType = .refresh
-      resizeTiming = nil
-    case .boundsChange(let timing):
+    case .boundsChange:
       updateType = .boundsChange
-      resizeTiming = animationDecision.followsResize ? timing : nil
     }
 
     for (itemIndex, renderableItem) in newRenderableItems.enumerated() {

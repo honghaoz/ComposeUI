@@ -53,16 +53,16 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     view.frame = CGRect(x: 0, y: 100, width: 200, height: 100)
     view.layoutIfNeeded()
     let row = try unwrap(rowLayer)
+    pauseTime(of: window.contentView.layer)
 
     // when: animating the view wider with a layout in the animation block
     UIView.animate(withDuration: 1) {
       view.frame.size.width = 400
       view.layoutIfNeeded()
     }
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.4))
 
-    // then: the row resizes with the view's animation, and midway it's on its way
-    try expectFollowsResize(row: row, of: view, from: 200, to: 400)
+    // then: the row resizes with the view's animation
+    try expectFollowsResize(row: row, of: view, from: 200, to: { 400 })
   }
 
   #if os(iOS)
@@ -95,45 +95,62 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
     }
     let portraitWidth = view.bounds.width
+    pauseTime(of: window.contentView.layer)
 
     // when: rotating to landscape
     scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
-    let deadline = Date(timeIntervalSinceNow: 2)
-    while view.layer.animation(forKey: "bounds.size") == nil, Date() < deadline {
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
-    }
-    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
 
-    // then: the row resizes with the rotation's animation, and midway it's on its way
-    try expectFollowsResize(row: row, of: view, from: portraitWidth, to: view.bounds.width)
+    // then: the row resizes with the rotation's animation
+    try expectFollowsResize(row: row, of: view, from: portraitWidth, to: { view.bounds.width })
   }
 
   #endif
 
   // MARK: - Helpers
 
-  /// Expects a row inset from the view's edges to resize with the view's resize animation, which is in flight.
+  /// Stops the time of a layer's tree, until the test ends, so that the test sets the time that the animations show.
   ///
-  /// The row's place midway is checked against its two ends, not against the view's width: the row's animation begins
-  /// at the start of the run loop turn that lays it out, as every animation of ComposeUI does, while UIKit's begins when
-  /// the turn commits, which for a rotation is in a later turn, so the row can run ahead of the view by that time.
-  private func expectFollowsResize(row: CALayer, of view: UIView, from oldWidth: CGFloat, to newWidth: CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
-    func sizeAnimation(of layer: CALayer) throws -> CABasicAnimation {
-      let animations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
-      return try unwrap(animations.last { $0.keyPath == "bounds.size" }, "the bounds.size animation", file: file, line: line)
+  /// An animation that begins at the commit then begins at the same time as one that begins earlier in the run loop
+  /// turn, since no time passes in between. The checks of the time an animation begins at are left to the unit tests.
+  private func pauseTime(of layer: CALayer) {
+    let time = layer.convertTime(CACurrentMediaTime(), from: nil)
+    layer.speed = 0
+    layer.timeOffset = time
+    addTeardownBlock {
+      layer.speed = 1
+      layer.timeOffset = 0
     }
-    let viewAnimation = try sizeAnimation(of: view.layer)
-    let rowAnimation = try sizeAnimation(of: row)
+  }
+
+  /// Expects a row inset from the view's edges to resize with the view's resize animation, in a tree whose time is
+  /// paused, see `pauseTime(of:)`.
+  private func expectFollowsResize(row: CALayer, of view: UIView, from oldWidth: CGFloat, to newWidth: () -> CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
+    func sizeAnimation(of layer: CALayer) -> CABasicAnimation? {
+      let animations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
+      return animations.last { $0.keyPath == "bounds.size" }
+    }
+
+    // wait for the commit that begins the view's animation, which the paused time keeps in flight
+    let deadline = Date(timeIntervalSinceNow: Constants.commitTimeout)
+    while (sizeAnimation(of: view.layer)?.beginTime ?? 0) == 0, Date() < deadline {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
+    }
+    let viewAnimation = try unwrap(sizeAnimation(of: view.layer), "the view's bounds.size animation", file: file, line: line)
+    let rowAnimation = try unwrap(sizeAnimation(of: row), "the row's bounds.size animation", file: file, line: line)
+    expect(viewAnimation.beginTime, file: file, line: line) != 0
     expect(rowAnimation.duration, file: file, line: line) == viewAnimation.duration
     expect(rowAnimation.timingFunction, file: file, line: line) == viewAnimation.timingFunction
-    expect(rowAnimation.beginTime, file: file, line: line).to(beLessThanOrEqual(to: viewAnimation.beginTime))
 
+    // when: showing the animations halfway
+    let superlayer = try unwrap(view.layer.superlayer, file: file, line: line)
+    superlayer.timeOffset = viewAnimation.beginTime + viewAnimation.duration / 2
+
+    // then: the row's right edge keeps its inset from the view's animating width
     let viewWidth = try unwrap(view.layer.presentation(), file: file, line: line).bounds.width
     let rowMaxX = try unwrap(row.presentation(), file: file, line: line).frame.maxX
     expect(viewWidth, file: file, line: line).to(beGreaterThan(oldWidth + 1))
-    expect(viewWidth, file: file, line: line).to(beLessThan(newWidth - 1))
-    expect(rowMaxX, file: file, line: line).to(beGreaterThan(oldWidth - Constants.inset + 1))
-    expect(rowMaxX, file: file, line: line).to(beLessThan(newWidth - Constants.inset - 1))
+    expect(viewWidth, file: file, line: line).to(beLessThan(newWidth() - 1))
+    expect(rowMaxX, file: file, line: line).to(beApproximatelyEqual(to: viewWidth - Constants.inset, within: 0.01))
   }
 
   // MARK: - Constants
@@ -142,5 +159,11 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
     /// The row's inset from the view's left and right edges.
     static let inset: CGFloat = 10
+
+    /// How long to wait for the commit that begins the view's animation.
+    static let commitTimeout: TimeInterval = 2
+
+    /// How long each run loop turn of a wait runs for.
+    static let pollInterval: TimeInterval = 0.005
   }
 }

@@ -51,7 +51,7 @@ extension ComposeView {
     let allowsAnimations: Bool
 
     /// Whether reused renderables follow the animation that the view resizes with, in place of their own update
-    /// animations, see `ContentUpdateContext.ContentUpdateType.boundsChange(resizeTiming:)`.
+    /// animations, see `ContentUpdateContext.resizeTiming`.
     let followsResize: Bool
 
     /// The decision limited by a parent's decision.

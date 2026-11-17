@@ -89,6 +89,107 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     }
   }
 
+  func test_animatedLayout_pendingRefreshFollowsTheResize() throws {
+    let blockTiming = AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    for (isAnimated, expectedTiming) in [(true, blockTiming), (false, nil)] {
+      // given: a row with its own update animation, with a refresh pending
+      var context: RenderableUpdateContext?
+      let view = ComposeView {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50)
+          .animation(.linear(duration: 10))
+          .onUpdate { _, update in
+            context = update
+          }
+      }
+      view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+      view.refresh(animated: false)
+      view.setNeedsRefresh(animated: isAnimated)
+
+      // when: resizing the view with a layout in an animation block, which performs the refresh
+      UIView.animate(withDuration: 0.5) {
+        view.frame.size.width = 300
+        view.layoutIfNeeded()
+      }
+
+      // then: an animated refresh follows the resize, and a non-animated one stays non-animated
+      expect(context?.updateType, "animated \(isAnimated)") == .refresh
+      expect(context?.animationTiming, "animated \(isAnimated)") == expectedTiming
+      expect(context?.newFrame.width, "animated \(isAnimated)") == 300
+      view.layer.removeAllAnimations()
+    }
+  }
+
+  func test_animatedLayout_nestedViewWithPendingRefreshFollowsTheParentsResize() throws {
+    // given: a nested view filling its parent, showing a row, with a refresh pending
+    var context: RenderableUpdateContext?
+    var nested: ComposeView?
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50)
+          .onUpdate { _, update in
+            context = update
+          }
+      }
+      .onInsert { renderable, _ in
+        nested = renderable.view as? ComposeView
+      }
+    }
+    parent.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    parent.refresh(animated: false)
+    try unwrap(nested).setNeedsRefresh()
+
+    // when: resizing the parent with a layout in an animation block
+    UIView.animate(withDuration: 0.5) {
+      parent.frame.size.width = 300
+      parent.layoutIfNeeded()
+    }
+
+    // then: the nested row follows the parent's resize
+    expect(context?.updateType) == .refresh
+    expect(context?.animationTiming) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    expect(context?.newFrame.width) == 300
+    parent.layer.removeAllAnimations()
+  }
+
+  func test_animatedLayout_duringAnotherRenderPass_followsTheResizeAfterThePass() throws {
+    // given: a view showing a row, resized in an animation block, and another view whose render pass lays it out in an
+    // animation block. a render pass disables actions, so the resize animates before the pass, in the same transaction
+    var context: RenderableUpdateContext?
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+        .onUpdate { _, update in
+          context = update
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+    let other = ComposeView {
+      ColorNode(.blue)
+    }
+    .onDidRender { _, _ in
+      UIView.animate(withDuration: 0.5) {
+        view.layoutIfNeeded()
+      }
+    }
+    other.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+    }
+
+    // when: the other view renders, which defers the view's layout until after its pass
+    other.refresh(animated: false)
+
+    // then: the row is rendered on the next run loop iteration and follows the resize
+    expect(context?.newFrame.width) == 200
+    expect(context?.newFrame.width).toEventually(beEqual(to: 300))
+    expect(context?.updateType) == .boundsChange
+    expect(context?.animationTiming) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    view.layer.removeAllAnimations()
+  }
+
   func test_scrollInAnimation_readsNoResize() throws {
     // given: a tall row, reused through a scroll
     var context: RenderableUpdateContext?
