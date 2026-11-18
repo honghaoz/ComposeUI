@@ -208,7 +208,7 @@ public extension CALayer {
     animation.fromValue = from(layer)
     let toValue = to(layer)
     animation.toValue = toValue
-    animation.beginTime = CAAnimation.beginTime(at: currentTime, delay: timing.delay)
+    animation.beginTime = CAAnimation.addedBeginTime(at: currentTime, delay: timing.delay)
 
     updateAnimation?(animation)
 
@@ -422,6 +422,26 @@ enum KeyPathAnimation {
       return animation
     case .indirect(let animation):
       return animation
+    }
+  }
+
+  /// The animation, or a copy that begins at a time when it waits for the commit, see `AnimationClock.addsAtCommit`.
+  ///
+  /// - Parameter now: The time, in the layer's time space.
+  /// - Returns: The animation.
+  func resolvingPendingBegin(at now: TimeInterval) -> KeyPathAnimation {
+    guard animation.beginTime == 0 else {
+      return self
+    }
+    switch self {
+    case .direct(let animation):
+      let copy = animation.copy() as! CAPropertyAnimation // swiftlint:disable:this force_cast
+      copy.beginTime = CAAnimation.beginTime(at: now)
+      return .direct(copy)
+    case .indirect(let animation):
+      let copy = animation.copy() as! CAAnimation // swiftlint:disable:this force_cast
+      copy.beginTime = CAAnimation.beginTime(at: now)
+      return .indirect(copy)
     }
   }
 

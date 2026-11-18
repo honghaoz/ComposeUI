@@ -34,7 +34,7 @@ import UIKit
 
 import ChouTiTest
 
-@testable import ComposeUI
+@_spi(Private) @testable import ComposeUI
 
 class UIView_InheritedResizeTimingTests: XCTestCase {
 
@@ -186,16 +186,20 @@ class UIView_InheritedResizeTimingTests: XCTestCase {
 
     // when: resizing it twice in one transaction in blocks with the same timing
     var timing: AnimationTiming?
+    var keys: [String]?
     UIView.animate(withDuration: 0.5) {
       view.frame.size.width = 200
     }
     UIView.animate(withDuration: 0.5) {
       view.frame.size.width = 300
       timing = view.inheritedResizeTiming()
+      keys = view.inheritedResize()?.animationKeys
     }
 
-    // then: the timing is the blocks' timing
+    // then: the timing is the blocks' timing, with the keys of both of UIKit's animations
     expect(timing) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    expect(keys?.count) == 2
+    expect(Set(keys ?? []).count) == 2
 
     // when: resizing it again in a block of the same duration with another curve
     UIView.animate(withDuration: 0.5, delay: 0, options: .curveLinear) {
@@ -230,6 +234,26 @@ class UIView_InheritedResizeTimingTests: XCTestCase {
 
     // then: the timing is the resize's, which the view shows
     expect(timing) == AnimationTiming(timing: .timingFunction(0.3, CAMediaTimingFunction(name: .easeInEaseOut)))
+    view.layer.removeAllAnimations()
+  }
+
+  func test_withAFrameAnimationOfComposeUIs_readsUIKits() {
+    // given: a view whose layer has a frame animation of ComposeUI's that waits for the commit, as a parent's render pass
+    // adds within a commit window
+    let view = makeView()
+    AnimationClock.beginsAtCommit = true
+    view.layer.animateFrame(to: CGRect(x: 0, y: 0, width: 150, height: 100), timing: .linear(duration: 10))
+    AnimationClock.beginsAtCommit = false
+
+    // when: resizing it in an animation block
+    var timing: AnimationTiming?
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 200
+      timing = view.inheritedResizeTiming()
+    }
+
+    // then: the timing is UIKit's resize's
+    expect(timing) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
     view.layer.removeAllAnimations()
   }
 

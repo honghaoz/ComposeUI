@@ -46,16 +46,26 @@ extension UIView {
   ///
   /// - Returns: The timing, or `nil`.
   func inheritedResizeTiming() -> AnimationTiming? {
+    inheritedResize()?.timing
+  }
+
+  /// The timing of the animation that UIKit resizes the view with and the keys of its animations, see
+  /// `inheritedResizeTiming()`.
+  ///
+  /// - Returns: The timing and the keys, or `nil`.
+  func inheritedResize() -> (timing: AnimationTiming, animationKeys: [String])? {
     guard UIView.inheritedAnimationDuration > 0, let keys = layer.unbridgedAnimationKeys else {
       return nil
     }
 
-    var timing: AnimationTiming?
+    var resize: (timing: AnimationTiming, animationKeys: [String])?
     for key in keys {
       guard let animation = layer.animation(forKey: key) as? CAPropertyAnimation,
             // Core Animation gives an animation that begins at the commit its begin time then, so a begin time of zero
             // tells an animation of this transaction without a delay, while UIKit sets a delay as the begin time
-            animation.beginTime == 0
+            animation.beginTime == 0,
+            // a frame animation of ComposeUI's own, such as a parent's within a commit window, isn't UIKit's
+            !(animation is any FrameAnimation)
       else {
         continue
       }
@@ -67,10 +77,10 @@ extension UIView {
         guard animation.isAdditive else {
           continue
         }
-        guard let animationTiming = Self.timing(of: animation), timing == nil || timing == animationTiming else {
+        guard let animationTiming = Self.timing(of: animation), resize == nil || resize?.timing == animationTiming else {
           return nil
         }
-        timing = animationTiming
+        resize = (animationTiming, (resize?.animationKeys ?? []) + [key])
       case Constants.propertyAnimatorPacingKeyPath:
         // a property animator can pause and scrub the animations it made after the layout, which animations of the
         // content wouldn't follow
@@ -79,7 +89,7 @@ extension UIView {
         continue
       }
     }
-    return timing
+    return resize
   }
 
   /// The timing that reproduces a resize animation of UIKit's, or `nil` when it can't.

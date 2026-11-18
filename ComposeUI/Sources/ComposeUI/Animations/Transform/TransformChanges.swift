@@ -70,6 +70,22 @@ struct TransformChanges {
     self.rest = rest
   }
 
+  /// The changes, each beginning later by a time.
+  ///
+  /// - Parameter delay: The time.
+  /// - Returns: The changes.
+  func delayed(by delay: TimeInterval) -> TransformChanges {
+    TransformChanges(
+      first: Change(motion: first.motion.delayed(by: delay), inverseStart: first.inverseStart),
+      rest: rest.map { Change(motion: $0.motion.delayed(by: delay), inverseStart: $0.inverseStart) }
+    )
+  }
+
+  /// The time the last change begins, in the layer's time space.
+  var lastBeginTime: TimeInterval {
+    rest.reduce(first.motion.beginTime) { max($0, $1.motion.beginTime) }
+  }
+
   /// The time the first change begins, in the layer's time space.
   var beginTime: TimeInterval {
     rest.reduce(first.motion.beginTime) { min($0, $1.motion.beginTime) }

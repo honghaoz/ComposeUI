@@ -45,4 +45,19 @@ extension CAAnimation {
     // a paused or offset timeline can give, so zero takes the least positive time instead, which shows the same
     return beginTime == 0 ? .leastNormalMagnitude : beginTime
   }
+
+  /// The begin time of an animation added now: zero, for Core Animation to set at the commit, without a delay while
+  /// `AnimationClock.addsAtCommit` is on, and `beginTime(at:delay:)` otherwise.
+  ///
+  /// - Parameters:
+  ///   - now: The time the animation is added at, in its layer's time space, see `CALayer.currentTime`.
+  ///   - delay: The delay, see `AnimationTiming.delay`.
+  /// - Returns: The begin time.
+  static func addedBeginTime(at now: TimeInterval, delay: TimeInterval = 0) -> TimeInterval {
+    if delay <= 0, AnimationClock.addsAtCommit {
+      return 0
+    } else {
+      return beginTime(at: now, delay: delay)
+    }
+  }
 }

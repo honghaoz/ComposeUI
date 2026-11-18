@@ -199,6 +199,23 @@ struct PathChanges {
     changes.allSatisfy { $0.offset.hasSameSegments(as: path) }
   }
 
+  /// Makes every change begin later by a time.
+  ///
+  /// - Parameter delay: The time.
+  mutating func delay(by delay: TimeInterval) {
+    changes = changes.map { change in
+      Change(
+        offset: change.offset,
+        widthOffset: change.widthOffset,
+        heightOffset: change.heightOffset,
+        animation: change.animation,
+        curve: change.curve,
+        speed: change.speed,
+        beginTime: change.beginTime + delay
+      )
+    }
+  }
+
   /// Removes the changes that have landed.
   ///
   /// - Parameter now: The layer's current time.

@@ -252,10 +252,12 @@ private extension CALayer {
 
   /// The path's changes in flight, kept on the animation that shows them.
   func pathChanges(forKeyPath keyPath: String, at now: TimeInterval) -> PathChanges {
-    guard let box = animation(forKey: LayerKeyPath.objectiveC(keyPath))?.value(forKey: PathChangesBox.key) as? PathChangesBox else {
+    guard let animation = animation(forKey: LayerKeyPath.objectiveC(keyPath)),
+          let box = animation.value(forKey: PathChangesBox.key) as? PathChangesBox
+    else {
       return PathChanges()
     }
-    var changes = box.changes
+    var changes = box.changes(beginningWith: animation.beginTime, at: now)
     changes.removeLandedChanges(at: now)
     return changes
   }
@@ -290,7 +292,10 @@ private extension CALayer {
       basicAnimation.keyPath = objectiveCKeyPath
       basicAnimation.fromValue = points.adding(change.offset).path
       basicAnimation.toValue = path
-      basicAnimation.beginTime = change.beginTime
+
+      // a change made earlier keeps its begin time
+      basicAnimation.beginTime = change.beginTime == CAAnimation.beginTime(at: now) ? CAAnimation.addedBeginTime(at: now) : change.beginTime
+
       animation = basicAnimation
     } else {
       // the keyframes come with key times only when a change begins or lands between evenly spread keyframes, as Core
@@ -303,11 +308,14 @@ private extension CALayer {
       keyframeAnimation.duration = keyframes.duration
       keyframeAnimation.fillMode = .both
       keyframeAnimation.applyPreferredFrameRateRange()
-      keyframeAnimation.beginTime = CAAnimation.beginTime(at: now)
+
+      // a change that begins later keeps the keyframes on the clock's time, so it begins when it's due
+      keyframeAnimation.beginTime = changes.changes.allSatisfy { $0.beginTime <= CAAnimation.beginTime(at: now) } ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: now)
+
       animation = keyframeAnimation
     }
 
-    animation.setValue(PathChangesBox(changes), forKey: PathChangesBox.key)
+    animation.setValue(PathChangesBox(changes, recordedAtForCommit: animation.beginTime == 0 ? now : nil), forKey: PathChangesBox.key)
     add(animation, forKey: objectiveCKeyPath)
     #if DEBUG
     WorkCounter.count(.animation)
@@ -393,7 +401,7 @@ private enum ModelPath {
 }
 
 /// The changes of a path in flight, kept on the animation that shows them, so they end with it.
-private final class PathChangesBox {
+final class PathChangesBox {
 
   /// The key of the box on the animation.
   static let key = "io.chouti.composeui.pathChanges"
@@ -401,8 +409,27 @@ private final class PathChangesBox {
   /// The changes.
   let changes: PathChanges
 
-  init(_ changes: PathChanges) {
+  /// The time the changes were recorded at, when their animation begins at the commit.
+  let recordedAtForCommit: TimeInterval?
+
+  init(_ changes: PathChanges, recordedAtForCommit: TimeInterval?) {
     self.changes = changes
+    self.recordedAtForCommit = recordedAtForCommit
+  }
+
+  /// The changes, moved to their animation's begin time when it begins at the commit.
+  ///
+  /// - Parameters:
+  ///   - animationBeginTime: The begin time of the animation that keeps the box.
+  ///   - now: The layer's current time.
+  /// - Returns: The changes.
+  func changes(beginningWith animationBeginTime: TimeInterval, at now: TimeInterval) -> PathChanges {
+    guard let recordedAtForCommit else {
+      return changes
+    }
+    var changes = changes
+    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit)
+    return changes
   }
 }
 

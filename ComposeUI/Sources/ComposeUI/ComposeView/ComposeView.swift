@@ -1045,8 +1045,12 @@ open class ComposeView: BaseScrollView {
     // UIKit lays out a resize such as a rotation inside the resize's animation, which plain subviews take, so the
     // content follows it too. a layout during a parent's update keeps the resize that the parent applies, which UIKit
     // doesn't animate. the size check keeps the read out of a scroll's layouts.
-    if bounds.size != lastBoundsSize, followedResizeTiming == nil, let resizeTiming = inheritedResizeTiming() {
-      followedResizeTiming = resizeTiming
+    if bounds.size != lastBoundsSize, followedResizeTiming == nil, let resize = inheritedResize() {
+      // UIKit's animation begins at its commit, which can come turns after the layout, as a rotation's does
+      for animationKey in resize.animationKeys {
+        AnimationClock.waitForCommit(of: animationKey, on: layer)
+      }
+      followedResizeTiming = resize.timing
       renderBoundsChangeIfNeeded()
       followedResizeTiming = nil
     } else {

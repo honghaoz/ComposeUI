@@ -162,6 +162,156 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     expect(animation.beginTime) == 100
   }
 
+  func test_updateTransform_atTheCommit_beginsAtTheCommit_andItsChangesWithIt() throws {
+    // given: a layer at rest, whose anchor point is at its center, while the animation clock begins animations at the
+    // commit
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+
+    // when: a quarter turn about its top left corner animates over a second, with keyframes
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+
+    // then: the keyframes begin at the commit, and the change, recorded at 100, begins with them: at 100 until the
+    // commit, and at the commit's time once committed
+    let keyframes = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(keyframes.beginTime) == 0
+    expect(keyframes.recordedAtForCommit) == 100
+    expect(keyframes.changes(at: 100)?.beginTime) == 100
+    expect(keyframes.changes(at: 100.01)?.beginTime) == 100.01
+    let committedKeyframes = try unwrap(keyframes.copy() as? AnchoredTransformKeyframeAnimation)
+    committedKeyframes.beginTime = 100.02
+    expect(committedKeyframes.changes(at: 100.5)?.beginTime) == 100.02
+    expect(committedKeyframes.changes(at: 100.5)?.endTime) == 101.02
+    layer.removeAllAnimations()
+
+    // when: a quarter turn about its center, which Core Animation interpolates, animates over a second
+    layer.updateTransform(CATransform3DIdentity, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: nil)
+    layer.updateTransform(Constants.quarterTurn, anchor: .center, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+
+    // then: the animation begins at the commit, and its change with it
+    let basic = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformBasicAnimation)
+    expect(basic.beginTime) == 0
+    expect(basic.recordedAtForCommit) == 100
+    let committedBasic = try unwrap(basic.copy() as? AnchoredTransformBasicAnimation)
+    committedBasic.beginTime = 100.02
+    expect(committedBasic.changes(at: 100.5)?.beginTime) == 100.02
+  }
+
+  func test_updateTransform_duringAResize_atTheCommit_followsTheSize() throws {
+    // given: the keyframes of a scale about a corner during a resize, made at the clock's time
+    func keyframes(beginsAtCommit: Bool) throws -> [CATransform3D] {
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let scale = CATransform3DMakeScale(2, 2, 1)
+      layer.updateTransform(scale, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: nil)
+      let oldSize = layer.bounds.size
+      AnimationClock.beginsAtCommit = beginsAtCommit
+      defer {
+        AnimationClock.beginsAtCommit = false
+      }
+      AnimationClock.sharingTime(at: 100) {
+        layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+        layer.updateTransform(scale, anchor: .topLeft, oldSize: oldSize, animationTiming: .linear(duration: 1))
+      }
+      let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+      expect(animation.beginTime) == (beginsAtCommit ? 0 : 100)
+      return try (animation.values ?? []).map { try unwrap($0 as? NSValue).caTransform3DValue }
+    }
+
+    // when: the resize and the keyframes begin at the commit
+    let atTheCommit = try keyframes(beginsAtCommit: true)
+
+    // then: the keyframes follow the size as they do at the clock's time, since the resize begins at the commit with them
+    let atTheClocksTime = try keyframes(beginsAtCommit: false)
+    expect(atTheCommit.count) == atTheClocksTime.count
+    for (transform, expected) in zip(atTheCommit, atTheClocksTime) {
+      expect(CATransform3DEqualToTransform(transform, expected)) == true
+    }
+  }
+
+  func test_updateTransform_duringAResizeWithAnotherSizeAnimation_atTheCommit_followsTheSize() throws {
+    // given: the keyframes of a scale about a corner during a resize, on a layer that has a size animation of its own,
+    // which the keyframes evaluate through the layer's shown size
+    func keyframes(beginsAtCommit: Bool) throws -> [CATransform3D] {
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let scale = CATransform3DMakeScale(2, 2, 1)
+      layer.updateTransform(scale, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: nil)
+      let oldSize = layer.bounds.size
+      let ownAnimation = CABasicAnimation(keyPath: "bounds.size")
+      ownAnimation.isAdditive = true
+      ownAnimation.fromValue = CGSize(width: 0, height: -10)
+      ownAnimation.toValue = CGSize.zero
+      ownAnimation.beginTime = 99
+      ownAnimation.duration = 2
+      layer.add(ownAnimation, forKey: "own")
+      AnimationClock.beginsAtCommit = beginsAtCommit
+      defer {
+        AnimationClock.beginsAtCommit = false
+      }
+      AnimationClock.sharingTime(at: 100) {
+        layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+        layer.updateTransform(scale, anchor: .topLeft, oldSize: oldSize, animationTiming: .linear(duration: 1))
+      }
+      let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+      return try (animation.values ?? []).map { try unwrap($0 as? NSValue).caTransform3DValue }
+    }
+
+    // when: the resize and the keyframes begin at the commit
+    let atTheCommit = try keyframes(beginsAtCommit: true)
+
+    // then: the keyframes follow the size as they do at the clock's time
+    let atTheClocksTime = try keyframes(beginsAtCommit: false)
+    expect(atTheCommit.count) == atTheClocksTime.count
+    for (transform, expected) in zip(atTheCommit, atTheClocksTime) {
+      expect(CATransform3DEqualToTransform(transform, expected)) == true
+    }
+  }
+
+  func test_updateTransform_atTheCommit_withADelayedChange_keepsTheClocksTime() throws {
+    // given: a layer whose scale about its center changes after a delay, while the animation clock begins animations at
+    // the commit
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+    layer.updateTransform(CATransform3DMakeScale(2, 2, 1), anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1, delay: 0.5))
+
+    // when: another change stacks on it at once
+    layer.updateTransform(CATransform3DMakeScale(3, 3, 1), anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+
+    // then: the keyframes begin at the clock's time, so that the delayed change begins when it's due
+    let keyframes = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(keyframes.beginTime) == 100
+    expect(keyframes.recordedAtForCommit) == nil
+    expect(keyframes.changes(at: 100)?.lastBeginTime) == 100.5
+  }
+
+  func test_updateTransform_withADelay_atTheCommit_keepsItsBeginTime() throws {
+    // given: a layer at rest, while the animation clock begins animations at the commit
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+
+    // when: a quarter turn about its top left corner animates after a delay
+    layer.updateTransform(Constants.quarterTurn, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1, delay: 0.5))
+
+    // then: the keyframes begin after the delay, as the change does
+    let keyframes = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(keyframes.beginTime) == 100.5
+    expect(keyframes.recordedAtForCommit) == nil
+    expect(keyframes.changes(at: 100)?.beginTime) == 100.5
+  }
+
   func test_updateTransform_withATiming_keyframesPreferAHighFrameRate() throws {
     guard #available(macOS 12.0, iOS 15.0, tvOS 15.0, *) else {
       try skip("frame rate ranges are available from macOS 12, iOS 15 and tvOS 15")

@@ -65,6 +65,35 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     try expectFollowsResize(row: row, of: view, from: 200, to: { 400 })
   }
 
+  func test_animatedLayout_commitClosesTheCommitWindow() throws {
+    // given: a view in a window
+    let window = try makeHostWindow()
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+    }
+    window.contentView.addSubview(view)
+    view.frame = CGRect(x: 0, y: 100, width: 200, height: 100)
+    view.layoutIfNeeded()
+
+    // when: animating the view wider with a layout in the animation block
+    UIView.animate(withDuration: 1) {
+      view.frame.size.width = 400
+      view.layoutIfNeeded()
+    }
+
+    // then: the animations added before the commit begin at the commit
+    expect(AnimationClock.addsAtCommit) == true
+
+    // when: UIKit's resize animation is committed, while it's still in flight
+    let resize = try committedSizeAnimation(of: view.layer)
+    RunLoop.main.run(until: Date())
+
+    // then: the window is closed, so the animations added begin at the clock's time
+    expect(view.layer.animation(forKey: "bounds.size")?.beginTime) == resize.beginTime
+    expect(AnimationClock.addsAtCommit) == false
+  }
+
   #if os(iOS)
 
   func test_rotation_contentAnimatesWithView() throws {
@@ -91,8 +120,7 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     view.layoutIfNeeded()
     let row = try unwrap(rowLayer)
     addTeardownBlock {
-      scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+      self.restorePortrait(of: scene)
     }
     let portraitWidth = view.bounds.width
     pauseTime(of: window.contentView.layer)
@@ -104,14 +132,94 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     try expectFollowsResize(row: row, of: view, from: portraitWidth, to: { view.bounds.width })
   }
 
+  func test_rotation_contentBeginsWithView() throws {
+    guard #available(iOS 16.0, *) else {
+      try skip("requesting an interface orientation needs iOS 16")
+      return
+    }
+
+    // given: a view filling the window, with a row and a card with a drop shadow, in a window whose time runs
+    let window = try makeHostWindow()
+    let scene = try unwrap(window.windowScene)
+    var rowLayer: CALayer?
+    var shadowLayer: CALayer?
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+        .padding(horizontal: Constants.inset)
+        .onUpdate { renderable, _ in
+          rowLayer = renderable.layer
+        }
+      ColorNode(.white)
+        .frame(width: .flexible, height: 80)
+        .dropShadow(color: .black, opacity: 0.5, radius: 6, offset: .zero, path: { size in
+          CGPath(roundedRect: CGRect(origin: .zero, size: size), cornerWidth: 10, cornerHeight: 10, transform: nil)
+        })
+        .padding(horizontal: Constants.inset)
+    }
+    view.frame = window.contentView.bounds
+    view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    window.contentView.addSubview(view)
+    view.layoutIfNeeded()
+    let row = try unwrap(rowLayer)
+    shadowLayer = row.superlayer?.sublayers?.first { $0 is DropShadowLayer }
+    let shadow = try unwrap(shadowLayer, "the drop shadow's layer")
+    addTeardownBlock {
+      self.restorePortrait(of: scene)
+    }
+
+    // when: rotating to landscape, which UIKit commits in a later turn of the run loop than the layout
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
+    let viewAnimation = try committedSizeAnimation(of: view.layer)
+
+    // then: the row's animation and the shadow's path animation begin when the view's does
+    let rowAnimation = try unwrap(sizeAnimation(of: row), "the row's bounds.size animation")
+    expect(rowAnimation.beginTime) == viewAnimation.beginTime
+    let shadowPathAnimation = try unwrap(shadow.animation(forKey: "shadowPath"), "the shadow's path animation")
+    expect(shadowPathAnimation.beginTime) == viewAnimation.beginTime
+  }
+
   #endif
 
   // MARK: - Helpers
 
+  #if os(iOS)
+
+  /// Rotates the scene back to portrait and waits until it is, so that the next test starts in portrait.
+  @available(iOS 16.0, *)
+  private func restorePortrait(of scene: UIWindowScene) {
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+    let deadline = Date(timeIntervalSinceNow: Constants.rotationTimeout)
+    while scene.effectiveGeometry.interfaceOrientation != .portrait, Date() < deadline {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
+    }
+    expect(scene.effectiveGeometry.interfaceOrientation) == .portrait
+  }
+
+  #endif
+
+  /// The last `bounds.size` animation of a layer.
+  private func sizeAnimation(of layer: CALayer) -> CABasicAnimation? {
+    let animations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
+    return animations.last { $0.keyPath == "bounds.size" }
+  }
+
+  /// Waits for the commit that begins a layer's `bounds.size` animation, and returns the animation.
+  private func committedSizeAnimation(of layer: CALayer, file: StaticString = #filePath, line: UInt = #line) throws -> CABasicAnimation {
+    let deadline = Date(timeIntervalSinceNow: Constants.commitTimeout)
+    while (sizeAnimation(of: layer)?.beginTime ?? 0) == 0, Date() < deadline {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
+    }
+    let animation = try unwrap(sizeAnimation(of: layer), "the bounds.size animation", file: file, line: line)
+    expect(animation.beginTime, file: file, line: line) != 0
+    return animation
+  }
+
   /// Stops the time of a layer's tree, until the test ends, so that the test sets the time that the animations show.
   ///
   /// An animation that begins at the commit then begins at the same time as one that begins earlier in the run loop
-  /// turn, since no time passes in between. The checks of the time an animation begins at are left to the unit tests.
+  /// turn, since no time passes in between, so `test_rotation_contentBeginsWithView` checks the begin times with the
+  /// time running.
   private func pauseTime(of layer: CALayer) {
     let time = layer.convertTime(CACurrentMediaTime(), from: nil)
     layer.speed = 0
@@ -125,19 +233,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
   /// Expects a row inset from the view's edges to resize with the view's resize animation, in a tree whose time is
   /// paused, see `pauseTime(of:)`.
   private func expectFollowsResize(row: CALayer, of view: UIView, from oldWidth: CGFloat, to newWidth: () -> CGFloat, file: StaticString = #filePath, line: UInt = #line) throws {
-    func sizeAnimation(of layer: CALayer) -> CABasicAnimation? {
-      let animations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
-      return animations.last { $0.keyPath == "bounds.size" }
-    }
-
-    // wait for the commit that begins the view's animation, which the paused time keeps in flight
-    let deadline = Date(timeIntervalSinceNow: Constants.commitTimeout)
-    while (sizeAnimation(of: view.layer)?.beginTime ?? 0) == 0, Date() < deadline {
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
-    }
-    let viewAnimation = try unwrap(sizeAnimation(of: view.layer), "the view's bounds.size animation", file: file, line: line)
+    // the paused time keeps the view's animation in flight until the commit that begins it
+    let viewAnimation = try committedSizeAnimation(of: view.layer, file: file, line: line)
     let rowAnimation = try unwrap(sizeAnimation(of: row), "the row's bounds.size animation", file: file, line: line)
-    expect(viewAnimation.beginTime, file: file, line: line) != 0
     expect(rowAnimation.duration, file: file, line: line) == viewAnimation.duration
     expect(rowAnimation.timingFunction, file: file, line: line) == viewAnimation.timingFunction
 
@@ -162,6 +260,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
     /// How long to wait for the commit that begins the view's animation.
     static let commitTimeout: TimeInterval = 2
+
+    /// How long to wait for the scene to rotate back to portrait.
+    static let rotationTimeout: TimeInterval = 2
 
     /// How long each run loop turn of a wait runs for.
     static let pollInterval: TimeInterval = 0.005

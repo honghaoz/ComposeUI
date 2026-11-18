@@ -47,6 +47,23 @@ protocol AnchoredTransformAnimation: CAPropertyAnimation {
 
   /// The transform's changes, or `nil` when the transform stays while the layer's size animates.
   var changes: TransformChanges? { get }
+
+  /// The time the changes were recorded at, when the animation begins at the commit.
+  var recordedAtForCommit: TimeInterval? { get set }
+}
+
+extension AnchoredTransformAnimation {
+
+  /// The transform's changes, moved to the animation's begin time when it begins at the commit.
+  ///
+  /// - Parameter now: The layer's current time.
+  /// - Returns: The changes.
+  func changes(at now: TimeInterval) -> TransformChanges? {
+    guard let recordedAtForCommit else {
+      return changes
+    }
+    return changes?.delayed(by: (beginTime == 0 ? now : beginTime) - recordedAtForCommit)
+  }
 }
 
 /// An anchored transform animation of keyframes, at the size that the layer shows at each keyframe.
@@ -55,6 +72,7 @@ final class AnchoredTransformKeyframeAnimation: CAKeyframeAnimation, AnchoredTra
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero
   var changes: TransformChanges?
+  var recordedAtForCommit: TimeInterval?
 
   override func copy(with zone: NSZone? = nil) -> Any {
     // Core Animation copies an animation when it's added, without the Swift properties, so the copy takes them here
@@ -62,6 +80,7 @@ final class AnchoredTransformKeyframeAnimation: CAKeyframeAnimation, AnchoredTra
     copy.transform = transform
     copy.pivotOffset = pivotOffset
     copy.changes = changes
+    copy.recordedAtForCommit = recordedAtForCommit
     return copy
   }
 }
@@ -92,6 +111,7 @@ final class AnchoredTransformBasicAnimation: CABasicAnimation, AnchoredTransform
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero
   var motion: TransformMotion?
+  var recordedAtForCommit: TimeInterval?
 
   override func copy(with zone: NSZone? = nil) -> Any {
     // Core Animation copies an animation when it's added, without the Swift properties, so the copy takes them here
@@ -99,6 +119,7 @@ final class AnchoredTransformBasicAnimation: CABasicAnimation, AnchoredTransform
     copy.transform = transform
     copy.pivotOffset = pivotOffset
     copy.motion = motion
+    copy.recordedAtForCommit = recordedAtForCommit
     return copy
   }
 }
@@ -109,6 +130,7 @@ final class AnchoredTransformSpringAnimation: CASpringAnimation, AnchoredTransfo
   var transform = CATransform3DIdentity
   var pivotOffset = SIMD2<Double>.zero
   var motion: TransformMotion?
+  var recordedAtForCommit: TimeInterval?
 
   override func copy(with zone: NSZone? = nil) -> Any {
     // Core Animation copies an animation when it's added, without the Swift properties, so the copy takes them here
@@ -116,6 +138,7 @@ final class AnchoredTransformSpringAnimation: CASpringAnimation, AnchoredTransfo
     copy.transform = transform
     copy.pivotOffset = pivotOffset
     copy.motion = motion
+    copy.recordedAtForCommit = recordedAtForCommit
     return copy
   }
 }

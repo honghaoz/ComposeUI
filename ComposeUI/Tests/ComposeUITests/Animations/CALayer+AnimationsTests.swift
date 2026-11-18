@@ -681,6 +681,32 @@ class CALayer_AnimationsTests: XCTestCase {
     expect(animations[3].animation.animation is CAKeyframeAnimation) == true
   }
 
+  func test_resolvingPendingBegin() throws {
+    // given: direct and indirect animations of the bounds size, waiting for the commit and on the clock's time
+    let waiting = CABasicAnimation(keyPath: "bounds.size")
+    let waitingGroup = group(of: [CABasicAnimation(keyPath: "bounds.size")])
+    let scheduled = CABasicAnimation(keyPath: "bounds.size")
+    scheduled.beginTime = 50
+    let scheduledGroup = group(of: [CABasicAnimation(keyPath: "bounds.size")])
+    scheduledGroup.beginTime = 50
+    let animations: [KeyPathAnimation] = [.direct(waiting), .indirect(waitingGroup), .direct(scheduled), .indirect(scheduledGroup)]
+
+    // when: resolving their pending begin times at 100
+    let resolved = animations.map { $0.resolvingPendingBegin(at: 100) }
+
+    // then: the waiting ones are copies of the same kind that begin at 100, leaving the originals waiting, and the others
+    // are themselves
+    expect(resolved.map { kind(of: $0) }) == ["direct", "indirect", "direct", "indirect"]
+    expect(resolved.map(\.animation.beginTime)) == [100, 100, 50, 50]
+    expect(resolved[0].animation) !== waiting
+    expect(resolved[1].animation) !== waitingGroup
+    expect(resolved[1].animation is CAAnimationGroup) == true
+    expect(resolved[2].animation) === scheduled
+    expect(resolved[3].animation) === scheduledGroup
+    expect(waiting.beginTime) == 0
+    expect(waitingGroup.beginTime) == 0
+  }
+
   func test_animationSequence_relatedKeyPaths_areIndirect() throws {
     // given: a layer whose position animates directly, through its x component, and through a group of it, with a
     // sibling of its bounds size, its bounds, one of its bounds size's components, and a key path that only starts with

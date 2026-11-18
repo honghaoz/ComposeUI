@@ -36,6 +36,172 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
   #if canImport(UIKit)
 
+  func test_animatedLayout_followingAnimationsBeginAtTheCommit() throws {
+    // given: a row whose update animates its corner radius with the update's timing
+    var row: CALayer?
+    var item: CALayer?
+    var width: CGFloat = 100
+    let view = ComposeView {
+      LayerNode<CALayer>(update: { layer, context in
+        if let timing = context.animationTiming {
+          layer.animate(keyPath: "cornerRadius", to: context.newFrame.width / 10, timing: timing)
+        }
+      })
+      .frame(width: .flexible, height: 50)
+      .onUpdate { renderable, _ in
+        row = renderable.layer
+      }
+      ColorNode(.blue)
+        .frame(width: width, height: 50)
+        .animation(.linear(duration: 10))
+        .onUpdate { renderable, _ in
+          item = renderable.layer
+        }
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+    let rowLayer = try unwrap(row)
+
+    // when: resizing the view with a layout in an animation block
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+      view.layoutIfNeeded()
+    }
+
+    // then: the row's animations begin at the commit, as UIKit's resize animation of the view does, and the clock is
+    // back to its own begin times after the pass
+    let rowAnimations = (rowLayer.animationKeys() ?? []).compactMap { rowLayer.animation(forKey: $0) }
+    expect(rowAnimations.count) == 3
+    for animation in rowAnimations {
+      expect(animation.beginTime) == 0
+    }
+    expect(AnimationClock.beginsAtCommit) == false
+    rowLayer.removeAllAnimations()
+    item?.removeAllAnimations()
+    view.layer.removeAllAnimations()
+
+    // when: an animated refresh resizes an item, which doesn't follow a resize of UIKit's
+    width = 50
+    view.refresh(animated: true)
+
+    // then: its animations begin at the animation clock's time
+    let itemLayer = try unwrap(item)
+    let itemAnimations = (itemLayer.animationKeys() ?? []).compactMap { itemLayer.animation(forKey: $0) }
+    expect(itemAnimations.isEmpty) == false
+    for animation in itemAnimations {
+      expect(animation.beginTime) != 0
+    }
+    itemLayer.removeAllAnimations()
+  }
+
+  func test_animatedLayout_opensACommitWindowUntilUIKitsResizeCommits() throws {
+    // given: a view showing a row, and a layer outside it
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+    let otherLayer = CALayer()
+
+    // when: resizing the view with a layout in an animation block, then animating the other layer before the commit
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+      view.layoutIfNeeded()
+    }
+    otherLayer.animate(keyPath: "opacity", to: 0.5, timing: .linear(duration: 1))
+
+    // then: the other layer's animation begins at the commit too, as it commits with UIKit's resize
+    expect(try unwrap(otherLayer.animation(forKey: "opacity")).beginTime) == 0
+    otherLayer.removeAllAnimations()
+
+    // when: UIKit's resize animation is gone, then the other layer animates again
+    view.layer.removeAllAnimations()
+    otherLayer.animate(keyPath: "opacity", to: 1, timing: .linear(duration: 1))
+
+    // then: the window is closed, so the animation begins at the clock's time
+    expect(try unwrap(otherLayer.animation(forKey: "opacity")).beginTime) != 0
+    otherLayer.removeAllAnimations()
+  }
+
+  func test_animatedLayout_combinedResize_keepsTheWindowOpenWhileEitherAnimationWaits() throws {
+    for removesFirstAnimationFirst in [true, false] {
+      // given: a view showing a row
+      let view = ComposeView {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50)
+      }
+      view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+      view.refresh(animated: false)
+
+      // when: resizing the view in two blocks of the same timing, the second with a layout, then removing one of
+      // UIKit's two animations
+      UIView.animate(withDuration: 0.5) {
+        view.frame.size.width = 250
+      }
+      UIView.animate(withDuration: 0.5) {
+        view.frame.size.width = 300
+        view.layoutIfNeeded()
+      }
+      let sizeKeys = (view.layer.animationKeys() ?? []).filter { (view.layer.animation(forKey: $0) as? CABasicAnimation)?.keyPath == "bounds.size" }
+      expect(sizeKeys.count) == 2
+      guard sizeKeys.count == 2 else {
+        return
+      }
+      let removalOrder = removesFirstAnimationFirst ? sizeKeys : sizeKeys.reversed()
+      view.layer.removeAnimation(forKey: removalOrder[0])
+
+      // then: the window stays open for the other animation
+      expect(AnimationClock.addsAtCommit) == true
+
+      // when: the other animation goes too
+      view.layer.removeAnimation(forKey: removalOrder[1])
+
+      // then: the window closes
+      expect(AnimationClock.addsAtCommit) == false
+      view.layer.removeAllAnimations()
+    }
+  }
+
+  func test_animatedLayout_nestedViewFollowsTheParentsResize_atTheCommit() throws {
+    // given: a nested view filling its parent, showing a row
+    var row: CALayer?
+    var nestedView: ComposeView?
+    let parent = ComposeView {
+      ComposeViewNode {
+        ColorNode(.red)
+          .frame(width: .flexible, height: 50)
+          .onUpdate { renderable, _ in
+            row = renderable.layer
+          }
+      }
+      .onInsert { renderable, _ in
+        nestedView = renderable.view as? ComposeView
+      }
+    }
+    parent.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    parent.refresh(animated: false)
+    let rowLayer = try unwrap(row)
+
+    // when: resizing the parent with a layout in an animation block
+    UIView.animate(withDuration: 0.5) {
+      parent.frame.size.width = 300
+      parent.layoutIfNeeded()
+    }
+
+    // then: the nested view's frame animation and its row's begin at the commit, with UIKit's
+    let nested = try unwrap(nestedView).layer
+    for layer in [rowLayer, nested] {
+      let animations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }
+      expect(animations.isEmpty) == false
+      for animation in animations {
+        expect(animation.beginTime) == 0
+      }
+      layer.removeAllAnimations()
+    }
+    parent.layer.removeAllAnimations()
+  }
+
   func test_animatedLayout_reusedRenderablesFollowTheResize() throws {
     let blockTiming = AnimationTiming(timing: .timingFunction(0.7, CAMediaTimingFunction(name: .easeIn)))
     let ownTiming = AnimationTiming.linear(duration: 10)
@@ -316,6 +482,10 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       expect(context?.updateType) == .boundsChange
       expect(context?.animationTiming) == (nestedBehavior.isDisabled ? nil : timing)
       expect(row?.frame.width) == 200
+      // and its animations begin at the animation clock's time, as the frame animation that it follows does
+      for animation in (row?.animationKeys() ?? []).compactMap({ row?.animation(forKey: $0) }) {
+        expect(animation.beginTime) != 0
+      }
 
       // when: a non-animated refresh widens it again
       width = 250
