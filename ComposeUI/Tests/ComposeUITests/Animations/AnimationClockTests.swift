@@ -126,6 +126,35 @@ class AnimationClockTests: XCTestCase {
     expect(AnimationClock.addsAtCommit) == false
     expect(AnimationClock.commitWindowCount) == 0
   }
+
+  func test_waitForCommit_offTheMainThread_addsOnTheClock() {
+    // given: a commit window open on the main thread
+    let layer = CALayer()
+    let animation = CABasicAnimation(keyPath: "bounds.size")
+    animation.duration = 1
+    layer.add(animation, forKey: "resize")
+    AnimationClock.waitForCommit(of: "resize", on: layer)
+
+    // when: a background thread adds an animation, with the main thread blocked so that its run loop doesn't turn
+    var backgroundAddsAtCommit: Bool?
+    var backgroundBeginTime: TimeInterval?
+    let readsDone = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+      backgroundAddsAtCommit = AnimationClock.addsAtCommit
+      backgroundBeginTime = CAAnimation.addedBeginTime(at: 100)
+      readsDone.signal()
+    }
+    readsDone.wait()
+
+    // then: it begins at the clock's time, and the window stays open for the main thread
+    expect(backgroundAddsAtCommit) == false
+    expect(backgroundBeginTime) == 100
+    expect(AnimationClock.commitWindowCount) == 1
+    expect(AnimationClock.addsAtCommit) == true
+
+    layer.removeAllAnimations()
+    expect(AnimationClock.addsAtCommit) == false
+  }
   #endif
 
   func test_now_withinATurn_readsTheTimeOfTheFirstRead() {

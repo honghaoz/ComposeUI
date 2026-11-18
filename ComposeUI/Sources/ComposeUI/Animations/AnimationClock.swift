@@ -61,8 +61,13 @@ enum AnimationClock {
   private static var commitWindows: [CommitWindow] = []
 
   /// Whether the animations that ComposeUI adds now without a delay begin at the commit: while `beginsAtCommit` is on,
-  /// or a commit window is open. Main thread only.
+  /// or a commit window is open. Always false off the main thread.
   static var addsAtCommit: Bool {
+    // the commit state is main thread state, and an animation added on another thread commits apart from UIKit's
+    guard Thread.isMain else {
+      return false
+    }
+
     if beginsAtCommit {
       return true
     } else if commitWindows.isEmpty {
