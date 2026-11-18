@@ -1669,10 +1669,10 @@ open class ComposeView: BaseScrollView {
         // update, such as the refresh of `ComposeViewNode`'s update, and in the pass below. no outer resize is in effect
         // for it, since its passes nest within this pass, so it's cleared after. the view is looked up again after the
         // update instead of being kept, which would cost every item a retain and a release
-        var followsResize = false
+        var setsNestedResizeTiming = false
         if animatesFrame, let composeView = renderable.view as? ComposeView, composeView.bounds.size != (composeView.lastBoundsSize ?? .zero) {
           composeView.followedResizeTiming = animationTiming
-          followsResize = true
+          setsNestedResizeTiming = true
         }
 
         renderableItem.performUpdate(renderable, renderableUpdateContext)
@@ -1686,7 +1686,7 @@ open class ComposeView: BaseScrollView {
           if composeView.bounds.size != (composeView.lastBoundsSize ?? .zero) {
             composeView.renderBoundsChangeIfNeeded()
           }
-          if followsResize {
+          if setsNestedResizeTiming {
             composeView.followedResizeTiming = nil
           }
         }
