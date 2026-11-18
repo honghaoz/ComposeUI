@@ -68,8 +68,12 @@ enum AnimationClock {
     } else if commitWindows.isEmpty {
       return false
     } else {
-      closeCommittedWindows()
-      return !commitWindows.isEmpty
+      // the first window still open answers, and the turn observer closes the others
+      for window in commitWindows where window.isOpen {
+        return true
+      }
+      commitWindows.removeAll()
+      return false
     }
   }
 
@@ -83,6 +87,9 @@ enum AnimationClock {
   ///   - animationKey: The key of the animation.
   ///   - layer: The layer that has the animation.
   static func waitForCommit(of animationKey: String, on layer: CALayer) {
+    guard !commitWindows.contains(where: { $0.layer === layer && $0.animationKey == animationKey }) else {
+      return
+    }
     commitWindows.append(CommitWindow(layer: layer, animationKey: animationKey))
     if turnObservers.isEmpty {
       observeTurns()
@@ -98,12 +105,7 @@ enum AnimationClock {
 
   /// Closes the commit windows whose animations were committed or removed.
   private static func closeCommittedWindows() {
-    commitWindows.removeAll { window in
-      guard let animation = window.layer?.animation(forKey: window.animationKey) else {
-        return true
-      }
-      return animation.beginTime != 0
-    }
+    commitWindows.removeAll { !$0.isOpen }
   }
 
   /// The time of the current turn of the main run loop, `nil` until the turn's first read.
@@ -220,6 +222,11 @@ enum AnimationClock {
 
     /// The key of the animation.
     let animationKey: String
+
+    /// Whether the animation still waits for the commit.
+    var isOpen: Bool {
+      layer?.animation(forKey: animationKey)?.beginTime == 0
+    }
 
     /// Creates a commit window.
     ///

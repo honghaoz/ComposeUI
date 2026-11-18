@@ -91,6 +91,40 @@ class AnimationClockTests: XCTestCase {
     // then: the turn's end closes the window, before anything adds an animation
     expect(AnimationClock.commitWindowCount) == 0
   }
+
+  func test_waitForCommit_severalWindows() {
+    // given: two layers with animations that wait for the commit
+    func waitingLayer() -> CALayer {
+      let layer = CALayer()
+      let animation = CABasicAnimation(keyPath: "bounds.size")
+      animation.duration = 1
+      layer.add(animation, forKey: "resize")
+      return layer
+    }
+    let first = waitingLayer()
+    let second = waitingLayer()
+
+    // when: windows open for both, the first twice
+    AnimationClock.waitForCommit(of: "resize", on: first)
+    AnimationClock.waitForCommit(of: "resize", on: first)
+    AnimationClock.waitForCommit(of: "resize", on: second)
+
+    // then: one window is open for each animation
+    expect(AnimationClock.commitWindowCount) == 2
+
+    // when: the first animation goes
+    first.removeAllAnimations()
+
+    // then: the second window keeps the animations added beginning at the commit
+    expect(AnimationClock.addsAtCommit) == true
+
+    // when: the second animation goes too
+    second.removeAllAnimations()
+
+    // then: the windows close
+    expect(AnimationClock.addsAtCommit) == false
+    expect(AnimationClock.commitWindowCount) == 0
+  }
   #endif
 
   func test_now_withinATurn_readsTheTimeOfTheFirstRead() {

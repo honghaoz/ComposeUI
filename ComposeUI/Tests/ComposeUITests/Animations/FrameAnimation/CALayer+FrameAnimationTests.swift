@@ -191,6 +191,51 @@ class CALayer_FrameAnimationTests: XCTestCase {
     expect(layer.animation(forKey: "slide")) === addedSlide
   }
 
+  func test_retargetFrame_inACommitWindow_glidesBeginAtTheCommit() throws {
+    // given: a layer resizing from 100, and a commit window open for an animation that waits for the commit
+    let host = CALayer()
+    let waiting = CABasicAnimation(keyPath: "bounds.size")
+    waiting.duration = 1
+    host.add(waiting, forKey: "resize")
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    AnimationClock.sharingTime(at: 100) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+    }
+    AnimationClock.waitForCommit(of: "resize", on: host)
+
+    // when: the frame retargets at 100.1, within the window
+    AnimationClock.sharingTime(at: 100.1) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+    }
+
+    // then: the glides begin at the commit
+    func glides() -> [CAAnimation] {
+      (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }.filter { $0.beginTime != 100 }
+    }
+    expect(glides().isEmpty) == false
+    for glide in glides() {
+      expect(glide.beginTime) == 0
+    }
+
+    // when: the window closes, then the frame retargets again
+    host.removeAllAnimations()
+    layer.removeAllAnimations()
+    AnimationClock.sharingTime(at: 200) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 100, height: 50), timing: .linear(duration: 1))
+    }
+    AnimationClock.sharingTime(at: 200.1) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+    }
+
+    // then: the glides begin at the clock's time
+    let clockGlides = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }.filter { $0.beginTime != 200 }
+    expect(clockGlides.isEmpty) == false
+    for glide in clockGlides {
+      expect(glide.beginTime) == 200.1
+    }
+  }
+
   func test_retargetFrame_resizeDuringResize_glidesFromTheShownSize() throws {
     // given: a layer growing from 30 to 300 points wide over 4 seconds from 1000
     let layer = CALayer()
