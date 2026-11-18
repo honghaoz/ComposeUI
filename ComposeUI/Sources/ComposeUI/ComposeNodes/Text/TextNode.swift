@@ -383,7 +383,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   }
 
   private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    let layoutWidth = containerSize.width - textContainerInset.width * 2
+    let layoutWidth = TextLabelView.layoutWidth(proposedWidth: containerSize.width, textContainerInset: textContainerInset)
     let rawIntrinsicSize: CGSize
     switch text {
     case .simpleText(let entry) where numberOfLines == 1:

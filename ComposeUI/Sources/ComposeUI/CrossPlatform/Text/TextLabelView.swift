@@ -211,10 +211,29 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   private func labelSize(fitting size: CGSize) -> CGSize {
     let textSize = lastText.boundingRectSize(
       numberOfLines: numberOfLines,
-      layoutWidth: size.width - textContainerInset.width * 2,
+      layoutWidth: Self.layoutWidth(proposedWidth: size.width, textContainerInset: textContainerInset),
       lineBreakMode: lineBreakMode.measuringLineBreakMode
     )
     return Self.labelSize(textSize: textSize, textContainerInset: textContainerInset)
+  }
+
+  /// The narrowest width that a text lays out in, which a positive width that the inset uses up gives.
+  private static let minimumLayoutWidth: CGFloat = 1
+
+  /// Returns the width that a text lays out in, in a proposed width with an inset.
+  ///
+  /// A proposed width of zero or less means no limit, and the text measures in it as it is. A positive width that the
+  /// inset uses up leaves the text the narrowest width, 1 point, instead of zero, which text measuring takes as no limit.
+  ///
+  /// - Parameters:
+  ///   - proposedWidth: The width proposed for the label.
+  ///   - textContainerInset: The inset of the text from the label's edges.
+  /// - Returns: The text's layout width.
+  static func layoutWidth(proposedWidth: CGFloat, textContainerInset: CGSize) -> CGFloat {
+    guard proposedWidth > 0 else {
+      return proposedWidth
+    }
+    return max(proposedWidth - textContainerInset.width * 2, minimumLayoutWidth)
   }
 
   /// Returns the size of a label that shows a text of a size, with an inset.

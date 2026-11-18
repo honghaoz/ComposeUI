@@ -795,6 +795,7 @@ class TextLabelViewTests: XCTestCase {
       ("character wrapping", long, 140, 0, .byCharWrapping, .zero),
       ("inset", long, 140, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
       ("inset wider than the width", short, 10, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
+      ("zero width", long, 0, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
     ]
     for testCase in cases {
       // given: a label view, and a text node of the text's size, with the same text and settings
@@ -828,7 +829,7 @@ class TextLabelViewTests: XCTestCase {
     labelView.textContainerInset = CGSize(width: 16, height: 0)
 
     // when: the proposed width leaves one point, zero points, or less than zero points for the text
-    let widths: [CGFloat] = [33, 32, 31, 0]
+    let widths: [CGFloat] = [33, 32, 31, 1]
     let sizes = widths.map { labelView.sizeThatFits(CGSize(width: $0, height: 10000)) }
 
     // then: a narrower proposal never fits wider, and the text wraps instead of laying out on one line
@@ -837,6 +838,20 @@ class TextLabelViewTests: XCTestCase {
       expect(size.width, "\(widths[index])") <= sizes[0].width
       expect(size.height, "\(widths[index])") > oneLineSize.height
     }
+  }
+
+  func test_sizeThatFits_zeroWidth_hasNoWidthLimit() {
+    // given: a wrapping label with an inset
+    let labelView = TextLabelView(frame: .zero)
+    labelView.attributedString = NSAttributedString(string: "Hello world", attributes: [.font: Font.systemFont(ofSize: 15)])
+    labelView.textContainerInset = CGSize(width: 16, height: 0)
+
+    // when: measuring it in a zero width, and in a width without a limit
+    let zeroWidthSize = labelView.sizeThatFits(CGSize(width: 0, height: 10000))
+    let unlimitedSize = labelView.sizeThatFits(CGSize(width: 10000, height: 10000))
+
+    // then: a zero width means no limit, so the text lays out on one line
+    expect(zeroWidthSize) == unlimitedSize
   }
 
   func test_sizeThatFits_emptyText_isTheInset() {
