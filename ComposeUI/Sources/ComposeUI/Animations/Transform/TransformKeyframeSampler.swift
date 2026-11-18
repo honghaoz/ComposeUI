@@ -111,7 +111,7 @@ struct TransformKeyframeSampler {
     self.changes = changes ?? Self.endedChanges
     changesEndTime = self.changes.endTime
     self.sizeAnimations = sizeAnimations
-    frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations, at: now)
+    frameSizeChanges = sizeAnimations.isEmpty ? nil : FrameSizeChange.changes(of: sizeAnimations)
     modelSize = SIMD2(Double(layer.bounds.size.width), Double(layer.bounds.size.height))
     self.newTransform = newTransform
     self.newSize = newSize
@@ -269,13 +269,10 @@ private struct FrameSizeChange {
 
   /// The changes of the frame's animations of the size.
   ///
-  /// - Parameters:
-  ///   - animations: The animations of the size.
-  ///   - now: The layer's current time, which an animation that begins at the coming commit begins at for the samples,
-  ///     as the keyframes that sample it begin at the commit with it, see `AnimationClock.beginsAtCommit`.
+  /// - Parameter animations: The animations of the size.
   /// - Returns: The changes, or `nil` when an animation isn't one of the frame's animations of the size with a timing
-  ///   that `shownValue(forKeyPath:animations:at:)` evaluates.
-  static func changes(of animations: [KeyPathAnimation], at now: TimeInterval) -> [FrameSizeChange]? {
+  ///   that `shownValue(forKeyPath:animations:at:)` evaluates, and a begin time, which the frame's animations have.
+  static func changes(of animations: [KeyPathAnimation]) -> [FrameSizeChange]? {
     var changes: [FrameSizeChange] = []
     changes.reserveCapacity(animations.count)
     for keyPathAnimation in animations {
@@ -283,6 +280,7 @@ private struct FrameSizeChange {
             animation.part == .size,
             animation.hasEvaluableTiming,
             animation.speed > 0,
+            animation.beginTime != 0,
             let offset = animation.fromValue as? CGSize
       else {
         return nil
@@ -290,7 +288,7 @@ private struct FrameSizeChange {
       changes.append(FrameSizeChange(
         offset: SIMD2(Double(offset.width), Double(offset.height)),
         curve: AnimationCurve(animation),
-        beginTime: animation.beginTime == 0 ? now : animation.beginTime,
+        beginTime: animation.beginTime,
         speed: Double(animation.speed)
       ))
     }

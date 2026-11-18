@@ -33,11 +33,12 @@ import QuartzCore
 
 /// The clock the animations ComposeUI adds begin on.
 ///
-/// Every animation ComposeUI adds gets its begin time from this clock, instead of leaving it for Core Animation to set
-/// when the transaction commits, except while `beginsAtCommit` is on. An animation left without a begin time can start on screen a few milliseconds after
-/// the begin time Core Animation records on it, so anything computed later from the recorded time, such as a path that
-/// follows an in-flight frame animation, would be off by that delay. A begin time that is set is honored as it is, at
-/// the cost of the first frame showing the animation as far in as the time from adding it to that frame.
+/// Every animation ComposeUI adds gets its begin time from this clock, except while `beginsAtCommit` is on, instead of
+/// leaving it for Core Animation to set when the transaction commits. An animation left without a begin time can start
+/// on screen a few milliseconds after the begin time Core Animation records on it, so anything computed later from the
+/// recorded time, such as a path that follows an in-flight frame animation, would be off by that delay. A begin time
+/// that is set is honored as it is, at the cost of the first frame showing the animation as far in as the time from
+/// adding it to that frame.
 ///
 /// On the main thread, the clock reads one time per turn of the main run loop: the first read in a turn reads the media
 /// time, and the later reads return it until Core Animation has committed the turn's changes. The changes of a turn
@@ -48,13 +49,10 @@ import QuartzCore
 /// loop doesn't turn, such as between the test methods XCTest runs, the time holds until it turns.
 enum AnimationClock {
 
-  /// Whether the animations that ComposeUI adds now without a delay begin when Core Animation commits them, as UIKit's
-  /// own animations do, instead of at the time of the current turn. Main thread only.
+  /// Whether the animations that ComposeUI adds without a delay begin at the commit, as UIKit's do, instead of at the
+  /// turn's time. Main thread only.
   ///
-  /// A `ComposeView` turns it on for the render pass of a layout that follows a resize animation of UIKit's, such as a
-  /// rotation's, which UIKit can commit in a later turn of the main run loop than the layout, so that the content's
-  /// animations begin with UIKit's. An animation that begins at the commit has a begin time of zero until the commit,
-  /// which the evaluations read as beginning at the current time, see `CAAnimation.addedBeginTime(at:delay:)`.
+  /// Such an animation has a begin time of zero until the commit, which evaluations take as their current time.
   static var beginsAtCommit = false
 
   /// The time of the current turn of the main run loop, `nil` until the turn's first read.

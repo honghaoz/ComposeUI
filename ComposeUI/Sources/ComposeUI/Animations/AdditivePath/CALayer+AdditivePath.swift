@@ -257,7 +257,7 @@ private extension CALayer {
     else {
       return PathChanges()
     }
-    var changes = box.changes(beginningWith: animation.beginTime)
+    var changes = box.changes(beginningWith: animation.beginTime, at: now)
     changes.removeLandedChanges(at: now)
     return changes
   }
@@ -293,8 +293,7 @@ private extension CALayer {
       basicAnimation.fromValue = points.adding(change.offset).path
       basicAnimation.toValue = path
 
-      // a change made now begins at the commit while the animation clock begins animations there, see
-      // `AnimationClock.beginsAtCommit`, and one made earlier keeps its begin time
+      // a change made earlier keeps its begin time
       basicAnimation.beginTime = change.beginTime == CAAnimation.beginTime(at: now) ? CAAnimation.addedBeginTime(at: now) : change.beginTime
 
       animation = basicAnimation
@@ -310,8 +309,7 @@ private extension CALayer {
       keyframeAnimation.fillMode = .both
       keyframeAnimation.applyPreferredFrameRateRange()
 
-      // the keyframes begin at the commit while the animation clock begins animations there, see
-      // `AnimationClock.beginsAtCommit`, unless a change begins later, which would then begin late by the commit's time
+      // a change that begins later keeps the keyframes on the clock's time, so it begins when it's due
       keyframeAnimation.beginTime = changes.changes.allSatisfy { $0.beginTime <= now } ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: now)
 
       animation = keyframeAnimation
@@ -411,8 +409,7 @@ final class PathChangesBox {
   /// The changes.
   let changes: PathChanges
 
-  /// The time the changes were recorded at, for an animation that begins at the commit, whose begin time the changes
-  /// take as that time, or `nil` for an animation that begins at the time its changes have.
+  /// The time the changes were recorded at, when their animation begins at the commit.
   let recordedAtForCommit: TimeInterval?
 
   init(_ changes: PathChanges, recordedAtForCommit: TimeInterval?) {
@@ -420,17 +417,18 @@ final class PathChangesBox {
     self.recordedAtForCommit = recordedAtForCommit
   }
 
-  /// The changes at the times they show, for the animation that keeps them: an animation that begins at the commit has
-  /// the commit's time once committed, so its changes begin that much later than they were recorded to.
+  /// The changes, moved to their animation's begin time when it begins at the commit.
   ///
-  /// - Parameter animationBeginTime: The begin time of the animation that keeps the box.
+  /// - Parameters:
+  ///   - animationBeginTime: The begin time of the animation that keeps the box.
+  ///   - now: The layer's current time.
   /// - Returns: The changes.
-  func changes(beginningWith animationBeginTime: TimeInterval) -> PathChanges {
-    guard let recordedAtForCommit, animationBeginTime != 0 else {
+  func changes(beginningWith animationBeginTime: TimeInterval, at now: TimeInterval) -> PathChanges {
+    guard let recordedAtForCommit else {
       return changes
     }
     var changes = changes
-    changes.delay(by: animationBeginTime - recordedAtForCommit)
+    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit)
     return changes
   }
 }

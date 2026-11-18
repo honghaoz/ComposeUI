@@ -426,6 +426,26 @@ enum KeyPathAnimation {
   }
 
   /// The property animation of the key path, or `nil` for an animation that changes it through another key path.
+  /// The animation, or a copy that begins at a time when it waits for the commit, see `AnimationClock.beginsAtCommit`.
+  ///
+  /// - Parameter now: The time, in the layer's time space.
+  /// - Returns: The animation.
+  func resolvingPendingBegin(at now: TimeInterval) -> KeyPathAnimation {
+    guard animation.beginTime == 0 else {
+      return self
+    }
+    switch self {
+    case .direct(let animation):
+      let copy = animation.copy() as! CAPropertyAnimation // swiftlint:disable:this force_cast
+      copy.beginTime = CAAnimation.beginTime(at: now)
+      return .direct(copy)
+    case .indirect(let animation):
+      let copy = animation.copy() as! CAAnimation // swiftlint:disable:this force_cast
+      copy.beginTime = CAAnimation.beginTime(at: now)
+      return .indirect(copy)
+    }
+  }
+
   var directAnimation: CAPropertyAnimation? {
     switch self {
     case .direct(let animation):

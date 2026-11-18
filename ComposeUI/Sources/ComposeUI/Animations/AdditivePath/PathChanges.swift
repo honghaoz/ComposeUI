@@ -199,7 +199,7 @@ struct PathChanges {
     changes.allSatisfy { $0.offset.hasSameSegments(as: path) }
   }
 
-  /// Makes every change begin later by a time, see `PathChangesBox.changes(beginningWith:)`.
+  /// Makes every change begin later by a time.
   ///
   /// - Parameter delay: The time.
   mutating func delay(by delay: TimeInterval) {

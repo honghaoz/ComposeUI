@@ -46,9 +46,8 @@ extension CAAnimation {
     return beginTime == 0 ? .leastNormalMagnitude : beginTime
   }
 
-  /// The begin time to give an animation that is added now with a delay: zero, which Core Animation replaces with the
-  /// time of the commit, for an animation without a delay while `AnimationClock.beginsAtCommit` is on, and otherwise
-  /// `beginTime(at:delay:)`.
+  /// The begin time of an animation added now: zero, for Core Animation to set at the commit, while
+  /// `AnimationClock.beginsAtCommit` is on and there's no delay, and `beginTime(at:delay:)` otherwise.
   ///
   /// - Parameters:
   ///   - now: The time the animation is added at, in its layer's time space, see `CALayer.currentTime`.

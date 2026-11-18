@@ -48,20 +48,21 @@ protocol AnchoredTransformAnimation: CAPropertyAnimation {
   /// The transform's changes, or `nil` when the transform stays while the layer's size animates.
   var changes: TransformChanges? { get }
 
-  /// The time the changes were recorded at, for an animation that begins at the commit, whose begin time the changes
-  /// take as that time, or `nil` for an animation that begins at the time its changes have, see `committedChanges`.
+  /// The time the changes were recorded at, when the animation begins at the commit.
   var recordedAtForCommit: TimeInterval? { get set }
 }
 
 extension AnchoredTransformAnimation {
 
-  /// The transform's changes, at the times they show: an animation that begins at the commit has the commit's time once
-  /// committed, so its changes begin that much later than they were recorded to.
-  var committedChanges: TransformChanges? {
-    guard let recordedAtForCommit, beginTime != 0 else {
+  /// The transform's changes, moved to the animation's begin time when it begins at the commit.
+  ///
+  /// - Parameter now: The layer's current time.
+  /// - Returns: The changes.
+  func changes(at now: TimeInterval) -> TransformChanges? {
+    guard let recordedAtForCommit else {
       return changes
     }
-    return changes?.delayed(by: beginTime - recordedAtForCommit)
+    return changes?.delayed(by: (beginTime == 0 ? now : beginTime) - recordedAtForCommit)
   }
 }
 

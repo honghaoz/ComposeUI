@@ -185,7 +185,8 @@ extension CALayer {
         guard let remainingTime = sizeAnimation.animation.remainingTime(at: now) else {
           continue
         }
-        sizeAnimations.append(sizeAnimation)
+        // the keyframes begin at the commit with a size animation that waits for it
+        sizeAnimations.append(sizeAnimation.resolvingPendingBegin(at: now))
         sizeStartTime = min(sizeStartTime, max(now, sizeAnimation.animation.beginTime))
         sizeEndTime = max(sizeEndTime, now + remainingTime)
       }
@@ -201,7 +202,7 @@ extension CALayer {
       )
     }
 
-    var changes = keepsCourse ? anchoredAnimation?.committedChanges : nil
+    var changes = keepsCourse ? anchoredAnimation?.changes(at: now) : nil
     if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(anchoredAnimation: anchoredAnimation, keys: keys, at: now) : timing {
       if animationTiming != nil, let stackedChanges = stackedChanges(on: anchoredAnimation, to: transform, pivotOffset: pivotOffset, timing: motionTiming, at: now) {
         changes = stackedChanges
@@ -271,7 +272,7 @@ extension CALayer {
   {
     guard let anchoredAnimation,
           anchoredAnimation.pivotOffset == pivotOffset,
-          let changes = anchoredAnimation.committedChanges,
+          let changes = anchoredAnimation.changes(at: now),
           changes.endTime > now,
           let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform),
           let stackedChanges = changes.stacking(TransformMotion(interpolator: interpolator, timing: timing, at: now), at: now)
@@ -299,7 +300,7 @@ extension CALayer {
     let neverFinishes: Bool
     if let anchoredAnimation {
       // keyframes outlast the transform's changes while the size animates, and the transform is at rest after them
-      guard let changes = anchoredAnimation.committedChanges, changes.endTime > now else {
+      guard let changes = anchoredAnimation.changes(at: now), changes.endTime > now else {
         return nil
       }
       remainingTime = changes.endTime - now
@@ -346,7 +347,7 @@ extension CALayer {
     if let anchoredAnimation {
       // the animation shows the transform's changes, which give the transform exactly, unlike keyframes in between, and
       // the transform is the target once its changes end, see `addKeyframeAnimation`
-      let changes = anchoredAnimation.committedChanges.flatMap { now < $0.endTime ? $0 : nil }
+      let changes = anchoredAnimation.changes(at: now).flatMap { now < $0.endTime ? $0 : nil }
       shown = changes.map { $0.transform(at: now) } ?? anchoredAnimation.transform
       shownPivotOffset = anchoredAnimation.pivotOffset
     } else {
@@ -397,8 +398,6 @@ extension CALayer {
     animation.fromValue = NSValue(caTransform3D: Self.anchoredTransform(start, pivotOffset: pivotOffset, size: size))
     animation.toValue = NSValue(caTransform3D: newTransform)
 
-    // the motion begins at the time, and the animation at the commit while the animation clock begins animations there,
-    // see `AnimationClock.beginsAtCommit`
     animation.beginTime = CAAnimation.addedBeginTime(at: now, delay: timing.delay)
 
     let anchoredAnimation = animation as! any AnchoredTransformMotionAnimation // swiftlint:disable:this force_cast
@@ -461,8 +460,7 @@ extension CALayer {
 
     animation.applyPreferredFrameRateRange()
 
-    // keyframes that start now begin at the commit while the animation clock begins animations there, see
-    // `AnimationClock.beginsAtCommit`, unless a change begins later, which would then begin late by the commit's time
+    // a change that begins later keeps the keyframes on the clock's time, so it begins when it's due
     if sampler.startTime == now, (changes?.lastBeginTime ?? now) <= now {
       animation.beginTime = CAAnimation.addedBeginTime(at: now)
     } else {

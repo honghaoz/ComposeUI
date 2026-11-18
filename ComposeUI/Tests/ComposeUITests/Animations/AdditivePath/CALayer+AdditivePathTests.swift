@@ -78,20 +78,21 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(animation.beginTime) == 0
     let box = try unwrap(animation.value(forKey: PathChangesBox.key) as? PathChangesBox)
     expect(box.recordedAtForCommit) == 1000
-    expect(box.changes(beginningWith: 0).changes.map(\.beginTime)) == [1000]
-    expect(box.changes(beginningWith: 1000.02).changes.map(\.beginTime)) == [1000.02]
+    expect(box.changes(beginningWith: 0, at: 1000).changes.map(\.beginTime)) == [1000]
+    expect(box.changes(beginningWith: 0, at: 1000.01).changes.map(\.beginTime)) == [1000.01]
+    expect(box.changes(beginningWith: 1000.02, at: 1000).changes.map(\.beginTime)) == [1000.02]
 
-    // when: animating the path again a second later, as keyframes of both changes
+    // when: animating the path again a second later, before the commit, as keyframes of both changes
     AnimationClock.sharingTime(at: 1001) {
       layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
     }
 
-    // then: the keyframes begin at the commit, and the changes begin later by the time the commit comes after 1001
+    // then: the keyframes begin at the commit, and both changes begin with them, since the first hasn't begun either
     let keyframes = try unwrap(layer.animation(forKey: "path") as? CAKeyframeAnimation)
     expect(keyframes.beginTime) == 0
     let keyframesBox = try unwrap(keyframes.value(forKey: PathChangesBox.key) as? PathChangesBox)
     expect(keyframesBox.recordedAtForCommit) == 1001
-    expect(keyframesBox.changes(beginningWith: 1001.02).changes.map(\.beginTime)) == [1000.02, 1001.02]
+    expect(keyframesBox.changes(beginningWith: 1001.02, at: 1001).changes.map(\.beginTime)) == [1001.02, 1001.02]
   }
 
   func test_animatePath_atTheCommit_withADelayedChange_keepsTheClocksTime() throws {
@@ -116,7 +117,30 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(keyframes.beginTime) == 1000
     let box = try unwrap(keyframes.value(forKey: PathChangesBox.key) as? PathChangesBox)
     expect(box.recordedAtForCommit) == nil
-    expect(box.changes(beginningWith: 1000).changes.map(\.beginTime)) == [1000.5, 1000]
+    expect(box.changes(beginningWith: 1000, at: 1000).changes.map(\.beginTime)) == [1000.5, 1000]
+  }
+
+  func test_animatePath_atTheCommit_updatedInALaterTurnBeforeTheCommit_continuesFromTheStart() throws {
+    // given: a shape layer whose path animation, added at 1000, begins at a commit that hasn't come by 1000.5, as a
+    // rotation's commit can come turns after its layout
+    let layer = makeLayer()
+    AnimationClock.beginsAtCommit = true
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    }
+    AnimationClock.beginsAtCommit = false
+
+    // when: animating the path again at 1000.5, on the clock's time
+    AnimationClock.sharingTime(at: 1000.5) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 1))
+    }
+
+    // then: the change that hasn't begun is still at its start, so the keyframes start from the old path and follow it
+    // for its whole second
+    let keyframes = try unwrap(layer.animation(forKey: "path") as? CAKeyframeAnimation)
+    let values = try pathValues(of: keyframes)
+    expect(try values.first.unwrap().maxPointDistance(to: rect(inset: 0))) < 1e-9
+    expect(keyframes.duration) == 1
   }
 
   func test_animatePath_atTheCommit_withADelay_keepsItsBeginTime() throws {
@@ -137,7 +161,7 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(animation.beginTime) == 1000.5
     let box = try unwrap(animation.value(forKey: PathChangesBox.key) as? PathChangesBox)
     expect(box.recordedAtForCommit) == nil
-    expect(box.changes(beginningWith: 1000.5).changes.map(\.beginTime)) == [1000.5]
+    expect(box.changes(beginningWith: 1000.5, at: 1000).changes.map(\.beginTime)) == [1000.5]
   }
 
   func test_animatePath_withoutPath_setsThePath() {

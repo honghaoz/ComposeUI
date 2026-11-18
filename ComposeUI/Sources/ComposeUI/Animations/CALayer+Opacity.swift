@@ -185,7 +185,7 @@ extension CALayer {
 
     let now = currentTime
 
-    // an animation added at the current time, or at the coming commit, begins now, so the layer still shows the motion
+    // an animation added at the current time, or waiting for the commit, begins now, so the layer still shows the motion
     // it replaced
     if opacityAnimations.count == 1,
        opacityAnimations[0].animation.beginTime == 0 || opacityAnimations[0].animation.beginTime == CAAnimation.beginTime(at: now),
