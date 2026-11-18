@@ -462,6 +462,36 @@ class KeyboardScrollAnimationTests: XCTestCase {
     }
   }
 
+  func test_secondGlideInAMagnifiedScrollView_goesOnAtSpeed() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    for magnification: CGFloat in [1, 1.1, 1.3] {
+      // given: a scroll view, magnified by a scale at which the clip view keeps a set offset with floating-point noise
+      // or not, gliding its content down by 200 points at speed, measured over a 10 ms frame
+      let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 100000))
+      scrollView.magnification = magnification
+      let animation = KeyboardScrollAnimation(scrollView: scrollView)
+      defer { animation.stop() }
+      animation.glide(toward: .down, by: 200, at: Constants.startTime)
+      animation.step(at: Constants.startTime + 0.09)
+      let offsetBefore = scrollView.contentOffset.y
+      animation.step(at: Constants.startTime + 0.1)
+      let distanceBefore = scrollView.contentOffset.y - offsetBefore
+
+      // when: another glide starts from there, and a frame 10 ms later steps the animation
+      animation.glide(toward: .down, by: 200, at: Constants.startTime + 0.1)
+      let offsetAfter = scrollView.contentOffset.y
+      animation.step(at: Constants.startTime + 0.11)
+      let distanceAfter = scrollView.contentOffset.y - offsetAfter
+
+      // then: the new glide goes on at about the same speed, instead of easing in from rest
+      expect(distanceAfter) >= distanceBefore * 0.8
+      withExtendedLifetime(window) {}
+    }
+  }
+
   func test_scrollingDisabled_bringsStretchedContentIntoTheRangeAndStops() throws {
     guard #available(macOS 14.0, *) else {
       return
