@@ -63,7 +63,9 @@ extension UIView {
       guard let animation = layer.animation(forKey: key) as? CAPropertyAnimation,
             // Core Animation gives an animation that begins at the commit its begin time then, so a begin time of zero
             // tells an animation of this transaction without a delay, while UIKit sets a delay as the begin time
-            animation.beginTime == 0
+            animation.beginTime == 0,
+            // a frame animation of ComposeUI's own, such as a parent's within a commit window, isn't UIKit's
+            !(animation is any FrameAnimation)
       else {
         continue
       }

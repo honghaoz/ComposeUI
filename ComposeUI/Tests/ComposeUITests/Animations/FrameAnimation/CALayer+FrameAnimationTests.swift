@@ -192,19 +192,22 @@ class CALayer_FrameAnimationTests: XCTestCase {
   }
 
   func test_retargetFrame_inACommitWindow_glidesBeginAtTheCommit() throws {
-    // given: a commit window open for an animation that waits for the commit
+    // given: a layer with an animation that waits for the commit, for a commit window
     let host = CALayer()
     let waiting = CABasicAnimation(keyPath: "bounds.size")
     waiting.duration = 1
     host.add(waiting, forKey: "resize")
-    AnimationClock.waitForCommit(of: "resize", on: host)
 
-    // the animations after a retarget at the time of a layer resizing from a tenth of a second before
-    func animationsAfterRetargeting(at time: TimeInterval) -> [CABasicAnimation] {
+    // the animations after a retarget at the time of a layer resizing from a tenth of a second before, on the clock's
+    // time, with a commit window opening in between or not
+    func animationsAfterRetargeting(at time: TimeInterval, inACommitWindow: Bool) -> [CABasicAnimation] {
       let layer = CALayer()
       layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
       AnimationClock.sharingTime(at: time - 0.1) {
         layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+      }
+      if inACommitWindow {
+        AnimationClock.waitForCommit(of: "resize", on: host)
       }
       AnimationClock.sharingTime(at: time) {
         layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
@@ -212,11 +215,11 @@ class CALayer_FrameAnimationTests: XCTestCase {
       return (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
     }
 
-    // when: a frame retargets within the window
-    let windowAnimations = animationsAfterRetargeting(at: 100)
+    // when: a frame retargets within a window
+    let windowAnimations = animationsAfterRetargeting(at: 100, inACommitWindow: true)
 
     // then: it has a glide of the position and of the size, which begin at the commit, and every other animation is
-    // the resize's
+    // the resize's, on the clock's time
     for keyPath in ["position", "bounds.size"] {
       expect(windowAnimations.contains { $0.keyPath == keyPath && $0.beginTime == 0 }, keyPath) == true
     }
@@ -226,7 +229,7 @@ class CALayer_FrameAnimationTests: XCTestCase {
 
     // when: the window closes, then a frame retargets
     host.removeAllAnimations()
-    let clockAnimations = animationsAfterRetargeting(at: 200)
+    let clockAnimations = animationsAfterRetargeting(at: 200, inACommitWindow: false)
 
     // then: its glides begin at the clock's time
     for keyPath in ["position", "bounds.size"] {
