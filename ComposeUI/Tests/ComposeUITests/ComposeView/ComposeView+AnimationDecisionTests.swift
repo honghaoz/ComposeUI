@@ -146,7 +146,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
             if let configuredTiming {
               content = content.animation(configuredTiming)
             }
-            let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
+            let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates, followsResize: transitions || updates)
 
             // when: the item is inserted
             child.setPreparedContent(content, contentEvaluation: nil, animationDecision: decision)
@@ -205,7 +205,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     for transitions in [false, true] {
       for animations in [false, true] {
         // given: a child whose dynamic behavior always animates, showing a row configured for transitions and animations
-        let host = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations)
+        let host = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: animations, followsResize: transitions || animations)
         let timing = AnimationTiming.linear(duration: 10)
         let child = ComposeView()
         child.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -386,7 +386,7 @@ class ComposeView_AnimationDecisionTests: XCTestCase {
     height = 20
 
     // when: prepared content updates the existing row and reveals the next row
-    child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.transitionsOnly)
+    child.setPreparedContent(content(), contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations)
 
     // then: the two inherited decisions apply separately in the child
     expect(layers[0]) === reused

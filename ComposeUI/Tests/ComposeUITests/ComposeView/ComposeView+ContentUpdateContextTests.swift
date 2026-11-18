@@ -49,7 +49,7 @@ class ComposeView_ContentUpdateContextTests: XCTestCase {
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: .zero, preparedAnimationDecision: .all),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: bounds, bounds: bounds, preparedAnimationDecision: .all),
       ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: nil, bounds: bounds, preparedAnimationDecision: .all),
-      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: ComposeView.AnimationDecision.transitionsOnly),
+      ComposeView.ContentUpdateContext(contentNode: node, contentEvaluation: evaluation, updateType: .refresh(isAnimated: false), previousRenderBounds: .zero, bounds: bounds, preparedAnimationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations),
     ]
 
     // then: content identity and every update field participate in equality

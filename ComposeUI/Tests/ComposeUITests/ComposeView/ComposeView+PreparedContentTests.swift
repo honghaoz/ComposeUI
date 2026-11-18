@@ -267,7 +267,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
       child.setNeedsRefresh(animated: pendingAnimated)
 
       // when: the parent supplies prepared content with its own animation decision
-      child.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: suppliedAnimated, allowsAnimations: suppliedAnimated))
+      child.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: suppliedAnimated, allowsAnimations: suppliedAnimated, followsResize: suppliedAnimated || suppliedAnimated))
 
       // then: the content renders immediately with the supplied decision rather than the pending preference
       expect(layer) === originalLayer
@@ -301,7 +301,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
             layer = renderable.layer
             context = update
           }
-        let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates)
+        let decision = ComposeView.AnimationDecision(allowsTransitions: transitions, allowsAnimations: updates, followsResize: transitions || updates)
 
         // when: prepared content is applied with one resolved decision
         child.setPreparedContent(prepared, contentEvaluation: nil, animationDecision: decision)
@@ -323,7 +323,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
 
   func test_deferredPreparedContent_respectsCoalescedNonAnimatedRefresh() throws {
     for nonAnimatedFirst in [false, true] {
-      for decision in [ComposeView.AnimationDecision.transitionsOnly, ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: true)] {
+      for decision in [ComposeView.AnimationDecision.withoutUpdateAnimations, ComposeView.AnimationDecision(allowsTransitions: false, allowsAnimations: true, followsResize: false || true)] {
         // given: a reused item and a prepared replacement requested during rendering
         let view = ComposeView()
         view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -572,7 +572,7 @@ class ComposeView_PreparedContentTests: XCTestCase {
         child.afterRefresh = { view in
           view.afterRefresh = nil
           view.callsSuper = true
-          view.setPreparedContent(replacement, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: replacementAnimated, allowsAnimations: replacementAnimated))
+          view.setPreparedContent(replacement, contentEvaluation: nil, animationDecision: ComposeView.AnimationDecision(allowsTransitions: replacementAnimated, allowsAnimations: replacementAnimated, followsResize: replacementAnimated || replacementAnimated))
         }
 
         // when: the handled request is followed by a prepared update from its override

@@ -992,6 +992,18 @@ open class ComposeView: BaseScrollView {
 
   private var pendingRefresh: PendingRefresh?
 
+  /// The timing of the animation that the view resizes with, which the reused renderables of the render passes that the
+  /// view performs meanwhile follow, a refresh as well as a bounds change, or `nil` when the view doesn't resize in an
+  /// animation, or resizes in one that the timing can't reproduce.
+  ///
+  /// It's set only while the resize is applied. On UIKit, the view's layout sets the animation that UIKit runs the
+  /// layout in, such as a rotation's, see `UIView.inheritedResizeTiming()`. For a view nested in a `ComposeView`, the
+  /// parent's render pass sets the timing that it animated the view's frame with, during the item's update, which can
+  /// refresh the view, as `ComposeViewNode`'s does, or lay it out, and the pass of the resize. A pass deferred to a
+  /// later run loop iteration doesn't follow it, since the resize's animation has begun by then, and the view can have
+  /// resized again.
+  private var followedResizeTiming: AnimationTiming?
+
   /// Requests a refresh of the content.
   ///
   /// This method is non-blocking and will return immediately.
@@ -1029,7 +1041,21 @@ open class ComposeView: BaseScrollView {
   override open func layoutSubviews() {
     super.layoutSubviews()
 
+    #if canImport(UIKit)
+    // UIKit lays out a resize such as a rotation inside the resize's animation, which plain subviews take, so the
+    // content follows it too. a layout during a parent's update keeps the resize that the parent applies, which UIKit
+    // doesn't animate. the size check keeps the read out of a scroll's layouts.
+    if bounds.size != lastBoundsSize, followedResizeTiming == nil, let resizeTiming = inheritedResizeTiming() {
+      followedResizeTiming = resizeTiming
+      renderBoundsChangeIfNeeded()
+      followedResizeTiming = nil
+    } else {
+      renderBoundsChangeIfNeeded()
+    }
+    #else
+    // an AppKit view resizing in an animation lays out on every frame, so the content tracks it without following it
     renderBoundsChangeIfNeeded()
+    #endif
   }
 
   /// Performs a pending refresh, or renders the content for the current bounds if they changed since the last render.
@@ -1037,6 +1063,8 @@ open class ComposeView: BaseScrollView {
   /// A parent's render pass calls this on a nested `ComposeView` it inserted or resized, so the nested content follows
   /// the parent in the same render pass and, like prepared content, never animates more than the parent's animation
   /// decision allows (see `render()`).
+  ///
+  /// The passes follow the resize that the view applies, see `followedResizeTiming`.
   private func renderBoundsChangeIfNeeded() {
     guard !isRendering else {
       // a layout during this view's own render pass has nothing to do: the pass reads the bounds itself, and checks them
@@ -1045,8 +1073,8 @@ open class ComposeView: BaseScrollView {
     }
 
     guard canStartRenderPass else {
-      // a layout during another view's render pass runs after that pass, on the next run loop iteration like a
-      // deferred refresh
+      // a layout during another view's render pass runs after that pass, on the next run loop iteration like a deferred
+      // refresh
       onNextRunLoop { [weak self] in
         self?.renderBoundsChangeIfNeeded()
       }
@@ -1054,7 +1082,8 @@ open class ComposeView: BaseScrollView {
     }
 
     guard pendingRefresh == nil else {
-      // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh
+      // pending refreshes could be scheduled from window change, for the layout call, just perform the pending refresh.
+      // the refresh lays the content out for the resized bounds too, so it follows the resize as a bounds change would
       performPendingRefresh()
       return
     }
@@ -1559,6 +1588,19 @@ open class ComposeView: BaseScrollView {
     // the pass rounds every frame with one scale factor, which it records for the next pass to work out the frames that
     // this pass applied
     let scaleFactor = contentScaleFactor
+
+    // reused renderables follow the view's resize animation in place of their own update animations, as plain subviews
+    // do, so that the content keeps up with the view in either case
+    // a flag for the items to check, since an optional timing kept through the loop costs every item
+    let followsResize = animationDecision.followsResize && followedResizeTiming != nil
+    let updateType: RenderableUpdateType
+    switch context.updateType {
+    case .refresh:
+      updateType = .refresh
+    case .boundsChange:
+      updateType = .boundsChange
+    }
+
     for (itemIndex, renderableItem) in newRenderableItems.enumerated() {
       let id = renderableItem.id
 
@@ -1571,14 +1613,6 @@ open class ComposeView: BaseScrollView {
         debug?.onEvent(.renderWillReuseRenderable(item: renderableItem, renderable: renderable))
         #endif
 
-        let updateType: RenderableUpdateType
-        switch context.updateType {
-        case .refresh:
-          updateType = .refresh
-        case .boundsChange:
-          updateType = .boundsChange
-        }
-
         // the frame that the last pass applied, worked out as for a removal
         let oldIndex = reusedOldIndices[itemIndex]
         #if DEBUG && !COMPOSEUI_BENCHMARK
@@ -1590,7 +1624,9 @@ open class ComposeView: BaseScrollView {
         let newFrame = renderableItem.frame.rounded(scaleFactor: scaleFactor)
 
         let animationTiming: AnimationTiming?
-        if animationDecision.allowsAnimations, let renderableItemAnimationTiming = renderableItem.animationTiming {
+        if followsResize {
+          animationTiming = followedResizeTiming
+        } else if animationDecision.allowsAnimations, let renderableItemAnimationTiming = renderableItem.animationTiming {
           animationTiming = renderableItemAnimationTiming
         } else {
           animationTiming = nil
@@ -1620,7 +1656,7 @@ open class ComposeView: BaseScrollView {
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)
 
-        renderable.updateFrame(newFrame, animationTiming: animationTiming)
+        let animatesFrame = renderable.updateFrame(newFrame, animationTiming: animationTiming)
 
         #if DEBUG && !COMPOSEUI_BENCHMARK
         // the updates rely on the frame that the pass applied, so the renderable must take it, and the updates must
@@ -1629,22 +1665,35 @@ open class ComposeView: BaseScrollView {
         ComposeUI.assert(hadFrame, "a renderable doesn't take the frame the render pass gives. a view that keeps its own size needs a fixed-size node, such as with ViewNode's fixedSize(): \(id.id)")
         #endif
 
+        // a nested `ComposeView` resized with an animation follows it in the passes that it performs during the item's
+        // update, such as the refresh of `ComposeViewNode`'s update, and in the pass below. no outer resize is in effect
+        // for it, since its passes nest within this pass, so it's cleared after. the view is looked up again after the
+        // update instead of being kept, which would cost every item a retain and a release
+        var setsNestedResizeTiming = false
+        if animatesFrame, let composeView = renderable.view as? ComposeView, composeView.bounds.size != (composeView.lastBoundsSize ?? .zero) {
+          composeView.followedResizeTiming = animationTiming
+          setsNestedResizeTiming = true
+        }
+
         renderableItem.performUpdate(renderable, renderableUpdateContext)
+
+        // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
+        // animation decision instead of its own. compare the view's size with the size it last rendered at, not
+        // `oldFrame` with `newFrame`, since `willUpdate` and app code can resize it too. skip a view whose size didn't
+        // change, because the call would also run its pending refresh now, with this pass's animation decision instead
+        // of its own
+        if let composeView = renderable.view as? ComposeView {
+          if composeView.bounds.size != (composeView.lastBoundsSize ?? .zero) {
+            composeView.renderBoundsChangeIfNeeded()
+          }
+          if setsNestedResizeTiming {
+            composeView.followedResizeTiming = nil
+          }
+        }
 
         #if DEBUG && !COMPOSEUI_BENCHMARK
         ComposeUI.assert(!hadFrame || renderable.hasFrame(newFrame), "an update changed the frame of renderable: \(id.id)")
         #endif
-
-        // render a resized nested `ComposeView` now, within this pass, so that its animations follow this pass's
-        // animation decision instead of its own. compare the view's size with the size it last rendered at, not
-        // `oldFrame` with `newFrame`, since `willUpdate` and app code can resize it too. skip a view whose
-        // size didn't change, because the call would also run its pending refresh now, with this pass's animation
-        // decision instead of its own
-        if let composeView = renderable.view as? ComposeView,
-           composeView.bounds.size != (composeView.lastBoundsSize ?? .zero)
-        {
-          composeView.renderBoundsChangeIfNeeded()
-        }
 
         #if DEBUG
         debug?.onEvent(.renderDidReuseRenderable(item: renderableItem, renderable: renderable))

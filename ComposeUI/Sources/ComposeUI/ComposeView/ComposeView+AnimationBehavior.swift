@@ -37,11 +37,14 @@ public extension ComposeView {
 
     /// The default animation behavior.
     ///
-    /// - Refreshes (`refresh(animated:)` and `setNeedsRefresh(animated:)`): Transitions and animations follow their `animated` flag.
-    /// - Bounds change (resize or scroll): Transitions are enabled, but animations are disabled.
+    /// - Refreshes (`refresh(animated:)` and `setNeedsRefresh(animated:)`): Transitions and animations follow their
+    ///   `animated` flag.
+    /// - Bounds change (resize or scroll): Transitions are enabled, and the reused renderables update without their own
+    ///   animations. A resize that animates, such as a rotation or a `layoutIfNeeded()` in a UIKit animation block,
+    ///   animates them with the view's own resize animation, so that the content keeps up with the view.
     case `default`
 
-    /// The transitions and animations are disabled.
+    /// The transitions and animations are disabled, including following the view's resize animation.
     case disabled
 
     /// The dynamic animation behavior.
@@ -50,7 +53,8 @@ public extension ComposeView {
     /// determines whether the transitions and animations are enabled.
     ///
     /// Note: For render type `boundsChange`, returning `true` will also animate the reused renderables' updates, so
-    /// their frame can lag behind scrolling and live resizing.
+    /// their frame can lag behind scrolling and live resizing. A resize that animates animates them with the view's own
+    /// resize animation instead, as in the default behavior.
     case dynamic(_ shouldAnimate: (_ contentView: ComposeView, _ renderType: RenderType) -> Bool)
   }
 }

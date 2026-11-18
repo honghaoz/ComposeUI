@@ -156,7 +156,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
     expect(childRenderType) == .refresh(isAnimated: true)
     expect(child.layer().animation(forKey: "opacity")) != nil
     expect(colorContext?.updateType) == .insert
-    expect(colorContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(colorContext?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
     expect(colorContext?.animationTiming) == nil
     expect(layer.backgroundColor) == Color.red.cgColor
     expect(layer.opacity) == 1
@@ -282,13 +282,13 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       parent.layoutIfNeeded()
 
       // then: every nested view is reused and refreshes with the parent's separate decisions
-      let transitionsOnly = ComposeView.AnimationDecision.transitionsOnly
+      let withoutUpdateAnimations = ComposeView.AnimationDecision.withoutUpdateAnimations
       for level in 0 ..< nestingDepth {
         let child = originalViews[level]
         expect(nestedViews[level]) === child
         expect(child.frame) == CGRect(x: 0, y: 0, width: 160, height: 100)
         expect(nestedContexts[level]?.updateType) == (level == nestingDepth - 1 ? .insert : .refresh)
-        expect(nestedContexts[level]?.animationDecision) == transitionsOnly
+        expect(nestedContexts[level]?.animationDecision) == withoutUpdateAnimations
         expect(renderTypes[level]) == .refresh(isAnimated: true)
         expect(child.layer().animation(forKey: "bounds.size")) == nil
         expect(child.layer().animation(forKey: "position")) == nil
@@ -302,7 +302,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       expect(reusedLayer.animationKeys()) == nil
       expect(layerContexts[0]?.updateType) == .refresh
       expect(layerContexts[0]?.animationTiming) == nil
-      expect(layerContexts[0]?.animationDecision) == transitionsOnly
+      expect(layerContexts[0]?.animationDecision) == withoutUpdateAnimations
 
       // then: the newly visible row still runs its insert transition inside the reused subtree
       let insertedLayer = try unwrap(layers[1])
@@ -312,7 +312,7 @@ class ComposeViewNode_AnimationTests: XCTestCase {
       expect(insertedLayer.opacity) == 1
       expect(layerContexts[1]?.updateType) == .insert
       expect(layerContexts[1]?.animationTiming) == nil
-      expect(layerContexts[1]?.animationDecision) == transitionsOnly
+      expect(layerContexts[1]?.animationDecision) == withoutUpdateAnimations
       expect(insertedLayer.animationKeys()) == ["opacity"]
       let insertion = try unwrap(insertedLayer.animation(forKey: "opacity") as? CABasicAnimation)
       expect(insertion.fromValue as? Float) == -1

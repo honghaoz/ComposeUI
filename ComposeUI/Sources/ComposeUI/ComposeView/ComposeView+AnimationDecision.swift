@@ -35,20 +35,24 @@ extension ComposeView {
   /// The transition and update animation decisions for one render pass.
   struct AnimationDecision: Equatable {
 
-    /// Transitions and update animations run.
-    static let all = AnimationDecision(allowsTransitions: true, allowsAnimations: true)
+    /// Transitions, update animations and the view's resize animation run.
+    static let all = AnimationDecision(allowsTransitions: true, allowsAnimations: true, followsResize: true)
 
-    /// Neither transitions nor update animations run.
-    static let disabled = AnimationDecision(allowsTransitions: false, allowsAnimations: false)
+    /// Nothing animates.
+    static let disabled = AnimationDecision(allowsTransitions: false, allowsAnimations: false, followsResize: false)
 
-    /// Transitions run while reused renderables update immediately.
-    static let transitionsOnly = AnimationDecision(allowsTransitions: true, allowsAnimations: false)
+    /// Transitions run and reused renderables follow the view's resize animation, without their own update animations.
+    static let withoutUpdateAnimations = AnimationDecision(allowsTransitions: true, allowsAnimations: false, followsResize: true)
 
     /// Whether inserted and removed renderables run their configured transitions.
     let allowsTransitions: Bool
 
     /// Whether reused renderables use their configured update animations.
     let allowsAnimations: Bool
+
+    /// Whether reused renderables follow the animation that the view resizes with, in place of their own update
+    /// animations, see `ComposeView.followedResizeTiming`.
+    let followsResize: Bool
 
     /// The decision limited by a parent's decision.
     ///
@@ -60,7 +64,8 @@ extension ComposeView {
     func capped(by parent: AnimationDecision) -> AnimationDecision {
       AnimationDecision(
         allowsTransitions: allowsTransitions && parent.allowsTransitions,
-        allowsAnimations: allowsAnimations && parent.allowsAnimations
+        allowsAnimations: allowsAnimations && parent.allowsAnimations,
+        followsResize: followsResize && parent.followsResize
       )
     }
   }
@@ -81,7 +86,7 @@ extension ComposeView.AnimationBehavior {
       case .refresh(let isAnimated):
         return isAnimated ? .all : .disabled
       case .boundsChange:
-        return .transitionsOnly
+        return .withoutUpdateAnimations
       }
     case .disabled:
       return .disabled

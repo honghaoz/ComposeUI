@@ -227,7 +227,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision.transitionsOnly
+      animationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -238,10 +238,10 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision.transitionsOnly
+      animationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations
     )
-    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
-    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
     // a bounds change keeps the evaluation of the refreshed content
     expect(try unwrap(updateContext?.contentEvaluation)) === refreshedEvaluation
     expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
@@ -260,7 +260,7 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision.transitionsOnly
+      animationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations
     )
     expect(updateContext) == RenderableUpdateContext(
       updateType: .boundsChange,
@@ -271,10 +271,10 @@ class ComposeView_RenderableTests: XCTestCase {
       animationTiming: nil,
       contentView: view,
       contentEvaluation: nil,
-      animationDecision: ComposeView.AnimationDecision.transitionsOnly
+      animationDecision: ComposeView.AnimationDecision.withoutUpdateAnimations
     )
-    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
-    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.transitionsOnly
+    expect(willUpdateContext?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
+    expect(updateContext?.animationDecision) == ComposeView.AnimationDecision.withoutUpdateAnimations
     expect(try unwrap(updateContext?.contentEvaluation)) === refreshedEvaluation
     expect(willUpdateContext?.contentEvaluation) === refreshedEvaluation
   }
