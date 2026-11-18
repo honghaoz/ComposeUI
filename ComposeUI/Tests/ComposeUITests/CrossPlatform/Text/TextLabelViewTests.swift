@@ -796,6 +796,7 @@ class TextLabelViewTests: XCTestCase {
       ("inset", long, 140, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
       ("inset wider than the width", short, 10, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
       ("zero width", long, 0, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
+      ("zero width, negative inset", long, 0, 0, .byWordWrapping, CGSize(width: -8, height: 3)),
     ]
     for testCase in cases {
       // given: a label view, and a text node of the text's size, with the same text and settings
