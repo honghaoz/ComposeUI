@@ -283,8 +283,6 @@ private extension CALayer {
     }
 
     let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
-    // an animation rebuilt from changes that wait for the commit waits for it too
-    let inputsWaitForCommit = changes.waitsForCommit
     let animation: CAPropertyAnimation
     if changes.changes.count == 1 {
       // one change is an animation between two paths, which Core Animation evaluates on every frame. it is a copy of the
@@ -296,7 +294,7 @@ private extension CALayer {
       basicAnimation.toValue = path
 
       // a change made earlier keeps its begin time
-      basicAnimation.beginTime = change.beginTime == CAAnimation.beginTime(at: now) ? CAAnimation.addedBeginTime(at: now, inputsWaitForCommit: inputsWaitForCommit) : change.beginTime
+      basicAnimation.beginTime = change.beginTime == CAAnimation.beginTime(at: now) ? CAAnimation.addedBeginTime(at: now) : change.beginTime
 
       animation = basicAnimation
     } else {
@@ -312,7 +310,7 @@ private extension CALayer {
       keyframeAnimation.applyPreferredFrameRateRange()
 
       // a change that begins later keeps the keyframes on the clock's time, so it begins when it's due
-      keyframeAnimation.beginTime = changes.changes.allSatisfy { $0.beginTime <= now } ? CAAnimation.addedBeginTime(at: now, inputsWaitForCommit: inputsWaitForCommit) : CAAnimation.beginTime(at: now)
+      keyframeAnimation.beginTime = changes.changes.allSatisfy { $0.beginTime <= CAAnimation.beginTime(at: now) } ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: now)
 
       animation = keyframeAnimation
     }
@@ -430,7 +428,7 @@ final class PathChangesBox {
       return changes
     }
     var changes = changes
-    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit, waitsForCommit: animationBeginTime == 0)
+    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit)
     return changes
   }
 }

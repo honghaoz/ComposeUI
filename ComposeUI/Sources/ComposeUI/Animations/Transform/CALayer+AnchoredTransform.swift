@@ -177,8 +177,6 @@ extension CALayer {
       $0.remainingTime(at: now) == nil ? nil : $0
     }
 
-    // an animation rebuilt from a change or a size animation that waits for the commit waits for it too
-    var inputsWaitForCommit = anchoredAnimation.map { $0.beginTime == 0 && $0.recordedAtForCommit != nil } ?? false
     var sizeAnimations: [KeyPathAnimation] = []
     var sizeStartTime = TimeInterval.infinity
     var sizeEndTime = now
@@ -189,9 +187,6 @@ extension CALayer {
         }
         // the keyframes begin at the commit with a size animation that waits for it
         sizeAnimations.append(sizeAnimation.resolvingPendingBegin(at: now))
-        if sizeAnimation.animation.beginTime == 0, Self.changesSize(sizeAnimation) {
-          inputsWaitForCommit = true
-        }
         sizeStartTime = min(sizeStartTime, max(now, sizeAnimation.animation.beginTime))
         sizeEndTime = max(sizeEndTime, now + remainingTime)
       }
@@ -225,7 +220,6 @@ extension CALayer {
               to: newTransform,
               size: newSize,
               timing: motionTiming,
-              inputsWaitForCommit: inputsWaitForCommit,
               at: now
             )
             return
@@ -254,7 +248,6 @@ extension CALayer {
       sizeTimes: (sizeStartTime, sizeEndTime),
       newTransform: newTransform,
       newSize: newSize,
-      inputsWaitForCommit: inputsWaitForCommit,
       at: now
     )
   }
@@ -384,7 +377,6 @@ extension CALayer {
   ///   - newTransform: The transform about the point at the layer's size, the model transform.
   ///   - size: The layer's size, which no animation changes.
   ///   - timing: The timing of the change.
-  ///   - inputsWaitForCommit: Whether an animation that the new one follows on from waits for the commit.
   ///   - now: The layer's current time.
   private func addBasicAnimation(transform: CATransform3D,
                                  pivotOffset: SIMD2<Double>,
@@ -393,7 +385,6 @@ extension CALayer {
                                  to newTransform: CATransform3D,
                                  size: CGSize,
                                  timing: AnimationTiming,
-                                 inputsWaitForCommit: Bool,
                                  at now: TimeInterval)
   {
     let animation = CABasicAnimation.makeAnimation(
@@ -407,7 +398,7 @@ extension CALayer {
     animation.fromValue = NSValue(caTransform3D: Self.anchoredTransform(start, pivotOffset: pivotOffset, size: size))
     animation.toValue = NSValue(caTransform3D: newTransform)
 
-    animation.beginTime = CAAnimation.addedBeginTime(at: now, delay: timing.delay, inputsWaitForCommit: inputsWaitForCommit)
+    animation.beginTime = CAAnimation.addedBeginTime(at: now, delay: timing.delay)
 
     let anchoredAnimation = animation as! any AnchoredTransformMotionAnimation // swiftlint:disable:this force_cast
     anchoredAnimation.recordedAtForCommit = animation.beginTime == 0 ? now : nil
@@ -437,7 +428,6 @@ extension CALayer {
   ///   - sizeTimes: The time from which the animations of the size move it, and the time the last of them ends.
   ///   - newTransform: The transform about the point at the new size, the model transform.
   ///   - newSize: The layer's size.
-  ///   - inputsWaitForCommit: Whether an animation that the new one follows on from waits for the commit.
   ///   - now: The layer's current time.
   private func addKeyframeAnimation(transform: CATransform3D,
                                     pivotOffset: SIMD2<Double>,
@@ -446,7 +436,6 @@ extension CALayer {
                                     sizeTimes: (start: TimeInterval, end: TimeInterval),
                                     newTransform: CATransform3D,
                                     newSize: CGSize,
-                                    inputsWaitForCommit: Bool,
                                     at now: TimeInterval)
   {
     let sampler = TransformKeyframeSampler(
@@ -472,8 +461,9 @@ extension CALayer {
     animation.applyPreferredFrameRateRange()
 
     // a change that begins later keeps the keyframes on the clock's time, so it begins when it's due
-    if sampler.startTime == now, (changes?.lastBeginTime ?? now) <= now {
-      animation.beginTime = CAAnimation.addedBeginTime(at: now, inputsWaitForCommit: inputsWaitForCommit)
+    let nowBeginTime = CAAnimation.beginTime(at: now)
+    if sampler.startTime <= nowBeginTime, (changes?.lastBeginTime ?? now) <= nowBeginTime {
+      animation.beginTime = CAAnimation.addedBeginTime(at: now)
     } else {
       animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
     }
@@ -490,17 +480,6 @@ extension CALayer {
     WorkCounter.count(.animation)
     #endif
     setModelTransform(newTransform)
-  }
-
-  /// Whether an animation of the size changes it, which a frame animation that only moves the layer doesn't.
-  ///
-  /// - Parameter sizeAnimation: The animation.
-  /// - Returns: `false` for a frame animation of no size change, and `true` otherwise.
-  private static func changesSize(_ sizeAnimation: KeyPathAnimation) -> Bool {
-    guard let frameAnimation = sizeAnimation.directAnimation as? any FrameAnimation, let offset = frameAnimation.fromValue as? CGSize else {
-      return true
-    }
-    return offset != .zero
   }
 
   private func setModelTransform(_ newTransform: CATransform3D) {

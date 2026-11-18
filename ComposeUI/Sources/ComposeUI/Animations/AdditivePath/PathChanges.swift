@@ -178,9 +178,6 @@ struct PathChanges {
   /// The changes in flight, in the order they were recorded.
   private(set) var changes: [Change] = []
 
-  /// Whether the animation that shows the changes waits for the commit, see `AnimationClock.beginsAtCommit`.
-  private(set) var waitsForCommit = false
-
   /// Whether no change is in flight.
   var isEmpty: Bool {
     changes.isEmpty
@@ -202,13 +199,10 @@ struct PathChanges {
     changes.allSatisfy { $0.offset.hasSameSegments(as: path) }
   }
 
-  /// Makes every change begin later by a time, for an animation that begins at the commit.
+  /// Makes every change begin later by a time.
   ///
-  /// - Parameters:
-  ///   - delay: The time.
-  ///   - waitsForCommit: Whether the animation still waits for the commit.
-  mutating func delay(by delay: TimeInterval, waitsForCommit: Bool) {
-    self.waitsForCommit = waitsForCommit
+  /// - Parameter delay: The time.
+  mutating func delay(by delay: TimeInterval) {
     changes = changes.map { change in
       Change(
         offset: change.offset,

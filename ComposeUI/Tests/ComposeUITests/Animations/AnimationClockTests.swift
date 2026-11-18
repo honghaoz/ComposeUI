@@ -38,6 +38,61 @@ class AnimationClockTests: XCTestCase {
 
   // MARK: - Now
 
+  func test_waitForCommit_untilTheAnimationIsCommittedOrRemoved() throws {
+    // given: a layer with an animation that waits for the commit
+    func waitingAnimation() -> CABasicAnimation {
+      let animation = CABasicAnimation(keyPath: "bounds.size")
+      animation.duration = 1
+      return animation
+    }
+    let layer = CALayer()
+    layer.add(waitingAnimation(), forKey: "resize")
+
+    // when: a commit window opens for the animation
+    AnimationClock.waitForCommit(of: "resize", on: layer)
+
+    // then: the animations added begin at the commit, unless they have a delay
+    expect(AnimationClock.addsAtCommit) == true
+    expect(CAAnimation.addedBeginTime(at: 100)) == 0
+    expect(CAAnimation.addedBeginTime(at: 100, delay: 0.5)) == 100.5
+
+    // when: the animation is committed, which gives it a begin time
+    let committed = waitingAnimation()
+    committed.beginTime = 99
+    layer.add(committed, forKey: "resize")
+
+    // then: the window closes, and the animations added begin at the clock's time
+    expect(AnimationClock.addsAtCommit) == false
+    expect(CAAnimation.addedBeginTime(at: 100)) == 100
+
+    // when: a window opens for an animation that is then removed
+    layer.add(waitingAnimation(), forKey: "resize")
+    AnimationClock.waitForCommit(of: "resize", on: layer)
+    expect(AnimationClock.addsAtCommit) == true
+    layer.removeAllAnimations()
+
+    // then: the window closes
+    expect(AnimationClock.addsAtCommit) == false
+  }
+
+  #if DEBUG
+  func test_waitForCommit_closesAtTheCommit() throws {
+    // given: a commit window for an animation of a layer outside a window, which a commit removes
+    let layer = CALayer()
+    let animation = CABasicAnimation(keyPath: "bounds.size")
+    animation.duration = 1
+    layer.add(animation, forKey: "resize")
+    AnimationClock.waitForCommit(of: "resize", on: layer)
+    expect(AnimationClock.commitWindowCount) == 1
+
+    // when: the main run loop turns, which commits
+    RunLoop.main.run(until: Date())
+
+    // then: the turn's end closes the window, before anything adds an animation
+    expect(AnimationClock.commitWindowCount) == 0
+  }
+  #endif
+
   func test_now_withinATurn_readsTheTimeOfTheFirstRead() {
     // given: a new turn of the main run loop
     RunLoop.main.run(until: Date())

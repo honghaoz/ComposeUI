@@ -33,7 +33,7 @@ import QuartzCore
 
 /// The clock the animations ComposeUI adds begin on.
 ///
-/// Every animation ComposeUI adds gets its begin time from this clock, except while `beginsAtCommit` is on, instead of
+/// Every animation ComposeUI adds gets its begin time from this clock, except while `addsAtCommit` is on, instead of
 /// leaving it for Core Animation to set when the transaction commits. An animation left without a begin time can start
 /// on screen a few milliseconds after the begin time Core Animation records on it, so anything computed later from the
 /// recorded time, such as a path that follows an in-flight frame animation, would be off by that delay. A begin time
@@ -50,11 +50,61 @@ import QuartzCore
 enum AnimationClock {
 
   /// Whether the animations that ComposeUI adds without a delay begin at the commit, as UIKit's do, instead of at the
-  /// turn's time. Main thread only.
+  /// turn's time, also outside a commit window, see `addsAtCommit`. Main thread only.
   ///
   /// Such an animation has a begin time of zero until the commit, which evaluations take as their current time.
   @exclusivity(unchecked)
   static var beginsAtCommit = false
+
+  /// The animations of UIKit's whose commits close the open commit windows, see `waitForCommit(of:on:)`.
+  @exclusivity(unchecked)
+  private static var commitWindows: [CommitWindow] = []
+
+  /// Whether the animations that ComposeUI adds now without a delay begin at the commit: while `beginsAtCommit` is on,
+  /// or a commit window is open. Main thread only.
+  static var addsAtCommit: Bool {
+    if beginsAtCommit {
+      return true
+    } else if commitWindows.isEmpty {
+      return false
+    } else {
+      closeCommittedWindows()
+      return !commitWindows.isEmpty
+    }
+  }
+
+  /// Opens a commit window, in which the animations that ComposeUI adds begin at the commit, until Core Animation
+  /// commits an animation of UIKit's.
+  ///
+  /// UIKit can commit a resize animation, such as a rotation's, in a later turn of the main run loop than the layout
+  /// that follows it, and what changes until then commits with it.
+  ///
+  /// - Parameters:
+  ///   - animationKey: The key of the animation.
+  ///   - layer: The layer that has the animation.
+  static func waitForCommit(of animationKey: String, on layer: CALayer) {
+    commitWindows.append(CommitWindow(layer: layer, animationKey: animationKey))
+    if turnObservers.isEmpty {
+      observeTurns()
+    }
+  }
+
+  #if DEBUG
+  /// The number of commit windows open, without closing the committed ones, for tests.
+  static var commitWindowCount: Int {
+    commitWindows.count
+  }
+  #endif
+
+  /// Closes the commit windows whose animations were committed or removed.
+  private static func closeCommittedWindows() {
+    commitWindows.removeAll { window in
+      guard let animation = window.layer?.animation(forKey: window.animationKey) else {
+        return true
+      }
+      return animation.beginTime != 0
+    }
+  }
 
   /// The time of the current turn of the main run loop, `nil` until the turn's first read.
   private static var turnTime: CFTimeInterval?
@@ -101,6 +151,9 @@ enum AnimationClock {
       Constants.commitObserverOrder,
       { _, _ in
         turnTime = nil
+        if !commitWindows.isEmpty {
+          closeCommittedWindows()
+        }
       }
     )
 
@@ -158,6 +211,26 @@ enum AnimationClock {
     turnTime = nil
   }
   #endif
+
+  /// An animation of UIKit's whose commit closes a commit window.
+  private struct CommitWindow {
+
+    /// The layer that has the animation.
+    weak var layer: CALayer?
+
+    /// The key of the animation.
+    let animationKey: String
+
+    /// Creates a commit window.
+    ///
+    /// - Parameters:
+    ///   - layer: The layer that has the animation.
+    ///   - animationKey: The key of the animation.
+    init(layer: CALayer, animationKey: String) {
+      self.layer = layer
+      self.animationKey = animationKey
+    }
+  }
 
   // MARK: - Constants
 

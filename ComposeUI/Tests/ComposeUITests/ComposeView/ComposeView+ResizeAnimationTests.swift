@@ -94,6 +94,36 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     itemLayer.removeAllAnimations()
   }
 
+  func test_animatedLayout_opensACommitWindowUntilUIKitsResizeCommits() throws {
+    // given: a view showing a row, and a layer outside it
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+    let otherLayer = CALayer()
+
+    // when: resizing the view with a layout in an animation block, then animating the other layer before the commit
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+      view.layoutIfNeeded()
+    }
+    otherLayer.animate(keyPath: "opacity", to: 0.5, timing: .linear(duration: 1))
+
+    // then: the other layer's animation begins at the commit too, as it commits with UIKit's resize
+    expect(try unwrap(otherLayer.animation(forKey: "opacity")).beginTime) == 0
+    otherLayer.removeAllAnimations()
+
+    // when: UIKit's resize animation is gone, then the other layer animates again
+    view.layer.removeAllAnimations()
+    otherLayer.animate(keyPath: "opacity", to: 1, timing: .linear(duration: 1))
+
+    // then: the window is closed, so the animation begins at the clock's time
+    expect(try unwrap(otherLayer.animation(forKey: "opacity")).beginTime) != 0
+    otherLayer.removeAllAnimations()
+  }
+
   func test_animatedLayout_nestedViewFollowsTheParentsResize_atTheCommit() throws {
     // given: a nested view filling its parent, showing a row
     var row: CALayer?

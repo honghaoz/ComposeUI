@@ -425,7 +425,7 @@ enum KeyPathAnimation {
     }
   }
 
-  /// The animation, or a copy that begins at a time when it waits for the commit, see `AnimationClock.beginsAtCommit`.
+  /// The animation, or a copy that begins at a time when it waits for the commit, see `AnimationClock.addsAtCommit`.
   ///
   /// - Parameter now: The time, in the layer's time space.
   /// - Returns: The animation.
