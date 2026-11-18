@@ -852,6 +852,12 @@ class TextLabelViewTests: XCTestCase {
 
     // then: a zero width means no limit, so the text lays out on one line
     expect(zeroWidthSize) == unlimitedSize
+
+    // when: the inset is negative
+    labelView.textContainerInset = CGSize(width: -8, height: 0)
+
+    // then: a zero width still means no limit
+    expect(labelView.sizeThatFits(CGSize(width: 0, height: 10000))) == labelView.sizeThatFits(CGSize(width: 10000, height: 10000))
   }
 
   func test_sizeThatFits_emptyText_isTheInset() {

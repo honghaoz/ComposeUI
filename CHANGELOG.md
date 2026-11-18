@@ -38,7 +38,7 @@
 ### Changes
 
 - Made `TextLabelView` public, so it can be used as a performant label in place of `UILabel` or `NSTextField`. ([#326](https://github.com/honghaoz/ComposeUI/pull/326))
-- A wrapping text whose inset leaves no width wraps narrowly instead of measuring as one line. ([#326](https://github.com/honghaoz/ComposeUI/pull/326))
+- A label or text node sized to its text wraps narrowly when its inset leaves no width, instead of measuring as one line. ([#326](https://github.com/honghaoz/ComposeUI/pull/326))
 - Added `previousRenderBounds` and `renderBounds` to `RenderableUpdateContext`, which tell a scroll from a resize. ([#24](https://github.com/honghaoz/ComposeUI/pull/24))
 - Added a scale transition, `.scale(from:anchor:timing:options:)`, and `UnitPoint`, which moved from ChouTiUI. ([#10](https://github.com/honghaoz/ComposeUI/pull/10), [#255](https://github.com/honghaoz/ComposeUI/pull/255))
 - Added `InsertTransition.prepareForTakeover(renderable:)`, and `revivalPosition` and `revivalTransform` in the insert transition context, for transitions that take over a removal. ([#6](https://github.com/honghaoz/ComposeUI/pull/6), [#10](https://github.com/honghaoz/ComposeUI/pull/10), [#74](https://github.com/honghaoz/ComposeUI/pull/74))
