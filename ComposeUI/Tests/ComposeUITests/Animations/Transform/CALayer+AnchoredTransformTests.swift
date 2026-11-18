@@ -272,6 +272,52 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     }
   }
 
+  func test_updateTransform_beforeTheCommit_followingAWaitingResize_waitsForTheCommit() throws {
+    // given: a layer scaled about its corner, whose resize, added at 100, begins at a commit that hasn't come by 100.1
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    let scale = CATransform3DMakeScale(2, 2, 1)
+    layer.updateTransform(scale, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: nil)
+    let oldSize = layer.bounds.size
+    AnimationClock.beginsAtCommit = true
+    AnimationClock.sharingTime(at: 100) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+    }
+    AnimationClock.beginsAtCommit = false
+
+    // when: the transform applies about the corner at 100.1, on the clock's time, following the resize
+    AnimationClock.sharingTime(at: 100.1) {
+      layer.updateTransform(scale, anchor: .topLeft, oldSize: oldSize, animationTiming: nil)
+    }
+
+    // then: the keyframes begin at the commit with the resize they follow
+    let keyframes = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(keyframes.beginTime) == 0
+    expect(keyframes.recordedAtForCommit) == 100.1
+  }
+
+  func test_updateTransform_beforeTheCommit_followingAWaitingChange_waitsForTheCommit() throws {
+    // given: a layer turning about its center from 100, which begins at a commit that hasn't come by 100.1
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    AnimationClock.beginsAtCommit = true
+    AnimationClock.sharingTime(at: 100) {
+      layer.updateTransform(Constants.quarterTurn, anchor: .center, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+    }
+    AnimationClock.beginsAtCommit = false
+    expect(try unwrap(layer.animation(forKey: "transform")).beginTime) == 0
+
+    // when: the layer turns back at 100.1, on the clock's time, from the turn that hasn't begun
+    AnimationClock.sharingTime(at: 100.1) {
+      layer.updateTransform(CATransform3DIdentity, anchor: .center, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+    }
+
+    // then: the new animation begins at the commit too
+    let animation = try unwrap(layer.animation(forKey: "transform") as? any AnchoredTransformAnimation)
+    expect(animation.beginTime) == 0
+    expect(animation.recordedAtForCommit) == 100.1
+  }
+
   func test_updateTransform_atTheCommit_withADelayedChange_keepsTheClocksTime() throws {
     // given: a layer whose scale about its center changes after a delay, while the animation clock begins animations at
     // the commit

@@ -425,7 +425,6 @@ enum KeyPathAnimation {
     }
   }
 
-  /// The property animation of the key path, or `nil` for an animation that changes it through another key path.
   /// The animation, or a copy that begins at a time when it waits for the commit, see `AnimationClock.beginsAtCommit`.
   ///
   /// - Parameter now: The time, in the layer's time space.
@@ -446,6 +445,7 @@ enum KeyPathAnimation {
     }
   }
 
+  /// The property animation of the key path, or `nil` for an animation that changes it through another key path.
   var directAnimation: CAPropertyAnimation? {
     switch self {
     case .direct(let animation):

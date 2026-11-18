@@ -46,15 +46,17 @@ extension CAAnimation {
     return beginTime == 0 ? .leastNormalMagnitude : beginTime
   }
 
-  /// The begin time of an animation added now: zero, for Core Animation to set at the commit, while
-  /// `AnimationClock.beginsAtCommit` is on and there's no delay, and `beginTime(at:delay:)` otherwise.
+  /// The begin time of an animation added now: zero, for Core Animation to set at the commit, without a delay while
+  /// `AnimationClock.beginsAtCommit` is on or the animation's inputs wait for the commit, and `beginTime(at:delay:)`
+  /// otherwise.
   ///
   /// - Parameters:
   ///   - now: The time the animation is added at, in its layer's time space, see `CALayer.currentTime`.
   ///   - delay: The delay, see `AnimationTiming.delay`.
+  ///   - inputsWaitForCommit: Whether an animation that the animation follows on from waits for the commit.
   /// - Returns: The begin time.
-  static func addedBeginTime(at now: TimeInterval, delay: TimeInterval = 0) -> TimeInterval {
-    if AnimationClock.beginsAtCommit, delay <= 0 {
+  static func addedBeginTime(at now: TimeInterval, delay: TimeInterval = 0, inputsWaitForCommit: Bool = false) -> TimeInterval {
+    if AnimationClock.beginsAtCommit || inputsWaitForCommit, delay <= 0 {
       return 0
     } else {
       return beginTime(at: now, delay: delay)

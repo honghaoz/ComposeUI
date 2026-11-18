@@ -143,6 +143,39 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(keyframes.duration) == 1
   }
 
+  func test_setPath_beforeTheCommit_keepsWaitingForTheCommit() throws {
+    // given: a shape layer whose path animation, added at 1000, begins at a commit that hasn't come by 1000.1
+    let layer = makeLayer()
+    AnimationClock.beginsAtCommit = true
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    }
+    AnimationClock.beginsAtCommit = false
+
+    // when: setting another path at 1000.1, on the clock's time, which the change in flight adds to
+    AnimationClock.sharingTime(at: 1000.1) {
+      layer.setPath(keyPath: "path", to: rect(inset: 15))
+    }
+
+    // then: the rebuilt animation still begins at the commit, with its change recorded at 1000.1
+    let animation = try unwrap(layer.animation(forKey: "path") as? CABasicAnimation)
+    expect(animation.beginTime) == 0
+    let box = try unwrap(animation.value(forKey: PathChangesBox.key) as? PathChangesBox)
+    expect(box.recordedAtForCommit) == 1000.1
+
+    // when: setting another path once the animation is on the clock's time
+    layer.removeAllAnimations()
+    AnimationClock.sharingTime(at: 1001) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 1))
+    }
+    AnimationClock.sharingTime(at: 1001.1) {
+      layer.setPath(keyPath: "path", to: rect(inset: 15))
+    }
+
+    // then: the rebuilt animation keeps the clock's time
+    expect(try unwrap(layer.animation(forKey: "path")).beginTime) == 1001
+  }
+
   func test_animatePath_atTheCommit_withADelay_keepsItsBeginTime() throws {
     // given: a shape layer with a rect path, while the animation clock begins animations at the commit
     let layer = makeLayer()
