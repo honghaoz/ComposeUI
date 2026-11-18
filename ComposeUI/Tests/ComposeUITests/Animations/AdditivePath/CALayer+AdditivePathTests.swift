@@ -141,6 +141,9 @@ class CALayer_AdditivePathTests: XCTestCase {
     let values = try pathValues(of: keyframes)
     expect(try values.first.unwrap().maxPointDistance(to: rect(inset: 0))) < 1e-9
     expect(keyframes.duration) == 1
+
+    // then: the keyframes wait for the commit with the change they follow on from
+    expect(keyframes.beginTime) == 0
   }
 
   func test_setPath_beforeTheCommit_keepsWaitingForTheCommit() throws {

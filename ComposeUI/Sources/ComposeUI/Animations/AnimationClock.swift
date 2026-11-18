@@ -53,6 +53,7 @@ enum AnimationClock {
   /// turn's time. Main thread only.
   ///
   /// Such an animation has a begin time of zero until the commit, which evaluations take as their current time.
+  @exclusivity(unchecked)
   static var beginsAtCommit = false
 
   /// The time of the current turn of the main run loop, `nil` until the turn's first read.

@@ -284,9 +284,7 @@ private extension CALayer {
 
     let objectiveCKeyPath = LayerKeyPath.objectiveC(keyPath)
     // an animation rebuilt from changes that wait for the commit waits for it too
-    let inputsWaitForCommit = self.animation(forKey: objectiveCKeyPath).map {
-      $0.beginTime == 0 && ($0.value(forKey: PathChangesBox.key) as? PathChangesBox)?.recordedAtForCommit != nil
-    } ?? false
+    let inputsWaitForCommit = changes.waitsForCommit
     let animation: CAPropertyAnimation
     if changes.changes.count == 1 {
       // one change is an animation between two paths, which Core Animation evaluates on every frame. it is a copy of the
@@ -432,7 +430,7 @@ final class PathChangesBox {
       return changes
     }
     var changes = changes
-    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit)
+    changes.delay(by: (animationBeginTime == 0 ? now : animationBeginTime) - recordedAtForCommit, waitsForCommit: animationBeginTime == 0)
     return changes
   }
 }

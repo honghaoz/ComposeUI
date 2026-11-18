@@ -144,6 +144,8 @@ public extension CALayer {
     var origin = FramePartMotion()
     var size = FramePartMotion()
     var now: TimeInterval?
+    // the glides continue animations that can wait for the commit, which they then wait for too
+    var inputsWaitForCommit = false
     for key in keys {
       guard let animation = animation(forKey: key) as? any FrameAnimation else {
         continue
@@ -152,12 +154,15 @@ public extension CALayer {
       // the clock is read only when a frame animation is found, as `inFlightAnimations(forKeyPath:animationKeys:)` does
       let time = now ?? currentTime
       now = time
-      guard let remainingTime = animation.remainingTime(at: time) else {
+      // the begin time is read once, as each read is a message send
+      let beginTime = animation.beginTime
+      guard let remainingTime = CAAnimation.remainingTime(beginTime: beginTime, duration: animation.duration, speed: TimeInterval(animation.speed), at: time) else {
         // Core Animation removes an ended animation
         continue
       }
 
       ComposeUI.assert(animation.hasEvaluableTiming, "frame animation \"\(key)\" has a timing that can't be evaluated: \(animation)")
+      inputsWaitForCommit = inputsWaitForCommit || beginTime == 0
       // a frame animation goes from its offset to zero
       let remainingFactor = animation.isFoldable(at: time) ? 1 - animation.progress(forElapsedTime: animation.timeSinceBegin(at: time)) : nil
 
@@ -231,7 +236,7 @@ public extension CALayer {
 
     // each axis glides over the time its animations have left, and the position's share of the size with the size's
     // axis. the glides that land together share an animation
-    let beginTime = CAAnimation.beginTime(at: now)
+    let beginTime = CAAnimation.addedBeginTime(at: now, inputsWaitForCommit: inputsWaitForCommit)
     let widthDuration = size.glideDuration(along: .x)
     let heightDuration = size.glideDuration(along: .y)
     let sizeShareGlide = FrameAxes(of: anchor * sizeGlide).projecting(anchor * sizeGlide)

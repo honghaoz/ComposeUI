@@ -189,7 +189,9 @@ extension CALayer {
         }
         // the keyframes begin at the commit with a size animation that waits for it
         sizeAnimations.append(sizeAnimation.resolvingPendingBegin(at: now))
-        inputsWaitForCommit = inputsWaitForCommit || sizeAnimation.animation.beginTime == 0
+        if sizeAnimation.animation.beginTime == 0, Self.changesSize(sizeAnimation) {
+          inputsWaitForCommit = true
+        }
         sizeStartTime = min(sizeStartTime, max(now, sizeAnimation.animation.beginTime))
         sizeEndTime = max(sizeEndTime, now + remainingTime)
       }
@@ -488,6 +490,17 @@ extension CALayer {
     WorkCounter.count(.animation)
     #endif
     setModelTransform(newTransform)
+  }
+
+  /// Whether an animation of the size changes it, which a frame animation that only moves the layer doesn't.
+  ///
+  /// - Parameter sizeAnimation: The animation.
+  /// - Returns: `false` for a frame animation of no size change, and `true` otherwise.
+  private static func changesSize(_ sizeAnimation: KeyPathAnimation) -> Bool {
+    guard let frameAnimation = sizeAnimation.directAnimation as? any FrameAnimation, let offset = frameAnimation.fromValue as? CGSize else {
+      return true
+    }
+    return offset != .zero
   }
 
   private func setModelTransform(_ newTransform: CATransform3D) {

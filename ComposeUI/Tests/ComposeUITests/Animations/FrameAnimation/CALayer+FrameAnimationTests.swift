@@ -191,6 +191,45 @@ class CALayer_FrameAnimationTests: XCTestCase {
     expect(layer.animation(forKey: "slide")) === addedSlide
   }
 
+  func test_retargetFrame_beforeTheCommit_glidesWaitForTheCommit() throws {
+    // given: a layer whose resize, added at 100, begins at a commit that hasn't come by 100.1
+    let layer = CALayer()
+    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+    AnimationClock.beginsAtCommit = true
+    AnimationClock.sharingTime(at: 100) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+    }
+    AnimationClock.beginsAtCommit = false
+
+    // when: the frame retargets at 100.1, on the clock's time
+    AnimationClock.sharingTime(at: 100.1) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+    }
+
+    // then: the glides wait for the commit with the resize they continue
+    let sizeAnimations = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }.filter { $0.keyPath == "bounds.size" }
+    expect(sizeAnimations.isEmpty) == false
+    for animation in sizeAnimations {
+      expect(animation.beginTime) == 0
+    }
+
+    // when: the frame retargets on the clock's time while its resize is on the clock's time
+    layer.removeAllAnimations()
+    AnimationClock.sharingTime(at: 200) {
+      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 100, height: 50), timing: .linear(duration: 1))
+    }
+    AnimationClock.sharingTime(at: 200.1) {
+      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+    }
+
+    // then: the glides begin at the clock's time
+    let glides = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }.filter { $0.beginTime != 200 }
+    expect(glides.isEmpty) == false
+    for animation in glides {
+      expect(animation.beginTime) == 200.1
+    }
+  }
+
   func test_retargetFrame_resizeDuringResize_glidesFromTheShownSize() throws {
     // given: a layer growing from 30 to 300 points wide over 4 seconds from 1000
     let layer = CALayer()
