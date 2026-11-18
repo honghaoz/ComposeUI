@@ -145,6 +145,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       }
       let sizeKeys = (view.layer.animationKeys() ?? []).filter { (view.layer.animation(forKey: $0) as? CABasicAnimation)?.keyPath == "bounds.size" }
       expect(sizeKeys.count) == 2
+      guard sizeKeys.count == 2 else {
+        return
+      }
       let removalOrder = removesFirstAnimationFirst ? sizeKeys : sizeKeys.reversed()
       view.layer.removeAnimation(forKey: removalOrder[0])
 
