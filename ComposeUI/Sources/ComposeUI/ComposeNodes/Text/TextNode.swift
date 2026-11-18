@@ -399,7 +399,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       )
     }
     let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
-    return TextLabelView.fittingSize(textSize: rawIntrinsicSize, textContainerInset: textContainerInset, adjustment: sizeAdjustment)
+    return TextLabelView.labelSize(textSize: rawIntrinsicSize, textContainerInset: textContainerInset, adjustment: sizeAdjustment)
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {

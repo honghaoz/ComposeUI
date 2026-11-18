@@ -37,11 +37,8 @@ import UIKit
 
 /// A view that draws a text that's neither editable nor selectable.
 ///
-/// `TextNode` shows a text that the user can neither edit nor select in this view, instead of in a `BaseTextView`. It
-/// lays out the text with TextKit 1, as ComposeUI measures text, and draws it, without a text view's machinery for
-/// editing, selection and scrolling.
-///
-/// It can also be used on its own, as a label:
+/// It lays out the text with TextKit 1 and draws it, without a text view's machinery for editing, selection and
+/// scrolling.
 ///
 /// ```swift
 /// let label = TextLabelView(frame: .zero)
@@ -50,7 +47,7 @@ import UIKit
 /// label.frame.size = label.sizeThatFits(CGSize(width: 200, height: CGFloat.greatestFiniteMagnitude))
 /// ```
 ///
-/// The view shows its text as it's set. Unlike `TextNode`, it doesn't apply a theme to the text's themed attributes.
+/// The view shows its text as it's set, without applying a theme to the text's themed attributes.
 ///
 /// On macOS, it doesn't post frame-change notifications by default.
 public final class TextLabelView: View, ScheduledTextRemovable {
@@ -182,7 +179,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   // MARK: - Sizing
 
   #if canImport(AppKit)
-  /// Returns the size that fits the text, as `TextNode` measures it.
+  /// Returns the size that fits the text.
   ///
   /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
   /// isn't limited.
@@ -190,12 +187,12 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// - Parameter size: The size to fit the text in.
   /// - Returns: The text's size with the inset, rounded up to whole points.
   public func sizeThatFits(_ size: CGSize) -> CGSize {
-    fittingSize(for: size)
+    labelSize(fitting: size)
   }
   #endif
 
   #if canImport(UIKit)
-  /// Returns the size that fits the text, as `TextNode` measures it.
+  /// Returns the size that fits the text.
   ///
   /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
   /// isn't limited.
@@ -203,7 +200,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// - Parameter size: The size to fit the text in.
   /// - Returns: The text's size with the inset, rounded up to whole points.
   override public func sizeThatFits(_ size: CGSize) -> CGSize {
-    fittingSize(for: size)
+    labelSize(fitting: size)
   }
   #endif
 
@@ -211,13 +208,13 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   ///
   /// - Parameter size: The size to fit the text in.
   /// - Returns: The text's size with the inset, rounded up to whole points.
-  private func fittingSize(for size: CGSize) -> CGSize {
+  private func labelSize(fitting size: CGSize) -> CGSize {
     let textSize = lastText.boundingRectSize(
       numberOfLines: numberOfLines,
       layoutWidth: size.width - textContainerInset.width * 2,
       lineBreakMode: lineBreakMode.measuringLineBreakMode
     )
-    return Self.fittingSize(textSize: textSize, textContainerInset: textContainerInset)
+    return Self.labelSize(textSize: textSize, textContainerInset: textContainerInset)
   }
 
   /// Returns the size of a label that shows a text of a size, with an inset.
@@ -225,9 +222,9 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// - Parameters:
   ///   - textSize: The text's size.
   ///   - textContainerInset: The inset of the text from the label's edges.
-  ///   - adjustment: The size to add to the text's size, such as a text node's `adjustIntrinsicTextSize` adds.
+  ///   - adjustment: An extra size to add to the text's size.
   /// - Returns: The label's size, rounded up to whole points.
-  static func fittingSize(textSize: CGSize, textContainerInset: CGSize, adjustment: CGSize = .zero) -> CGSize {
+  static func labelSize(textSize: CGSize, textContainerInset: CGSize, adjustment: CGSize = .zero) -> CGSize {
     CGSize(
       width: textSize.width + textContainerInset.width * 2 + adjustment.width,
       height: textSize.height + textContainerInset.height * 2 + adjustment.height
