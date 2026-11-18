@@ -780,6 +780,101 @@ class TextLabelViewTests: XCTestCase {
     }
   }
 
+  // MARK: - Sizing
+
+  func test_sizeThatFits_matchesTextNode() {
+    let font = Font.systemFont(ofSize: 15)
+    let short = NSAttributedString(string: "A single line of text", attributes: [.font: font])
+    let long = NSAttributedString(string: "A paragraph that wraps across several lines in a narrow view.", attributes: [.font: font])
+    let cases: [(name: String, text: NSAttributedString, width: CGFloat, numberOfLines: Int, lineBreakMode: NSLineBreakMode, inset: CGSize)] = [
+      ("empty", NSAttributedString(), 200, 0, .byWordWrapping, .zero),
+      ("single line", short, 1000, 1, .byTruncatingTail, .zero),
+      ("single line, narrower than the text", short, 50, 1, .byTruncatingTail, .zero),
+      ("wrapped", long, 140, 0, .byWordWrapping, .zero),
+      ("two lines", long, 140, 2, .byTruncatingTail, .zero),
+      ("character wrapping", long, 140, 0, .byCharWrapping, .zero),
+      ("inset", long, 140, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
+      ("inset wider than the width", short, 10, 0, .byWordWrapping, CGSize(width: 6, height: 3)),
+    ]
+    for testCase in cases {
+      // given: a label view, and a text node of the text's size, with the same text and settings
+      let labelView = TextLabelView(frame: .zero)
+      labelView.attributedString = testCase.text
+      labelView.numberOfLines = testCase.numberOfLines
+      labelView.lineBreakMode = testCase.lineBreakMode
+      labelView.textContainerInset = testCase.inset
+      var node = TextNode(testCase.text)
+        .numberOfLines(testCase.numberOfLines)
+        .lineBreakMode(testCase.lineBreakMode)
+        .textContainerInset(horizontal: testCase.inset.width, vertical: testCase.inset.height)
+        .fixedSize()
+
+      // when: measuring both in the same width
+      let proposedSize = CGSize(width: testCase.width, height: 10000)
+      let labelSize = labelView.sizeThatFits(proposedSize)
+      _ = node.layout(containerSize: proposedSize, context: ComposeNodeLayoutContext(scaleFactor: 1))
+
+      // then: the label view fits the size that the text node lays out in, rounded to whole points
+      expect(labelSize, testCase.name) == node.size
+      expect(labelSize.width, testCase.name) == labelSize.width.rounded(.up)
+      expect(labelSize.height, testCase.name) == labelSize.height.rounded(.up)
+    }
+  }
+
+  func test_sizeThatFits_emptyText_isTheInset() {
+    // given: a label view without a text, with an inset
+    let labelView = TextLabelView(frame: .zero)
+    labelView.textContainerInset = CGSize(width: 4, height: 2)
+
+    // when: measuring it
+    let size = labelView.sizeThatFits(CGSize(width: 100, height: 100))
+
+    // then: it's the inset on both sides
+    expect(size) == CGSize(width: 8, height: 4)
+  }
+
+  func test_sizeThatFits_ignoresTheProposedHeight() {
+    // given: a label view with a text that wraps to several lines
+    let labelView = TextLabelView(frame: .zero)
+    labelView.attributedString = NSAttributedString(
+      string: "A paragraph that wraps across several lines in a narrow view.",
+      attributes: [.font: Font.systemFont(ofSize: 15)]
+    )
+
+    // when: measuring it in a short and a tall size of the same width
+    let shortSize = labelView.sizeThatFits(CGSize(width: 140, height: 1))
+    let tallSize = labelView.sizeThatFits(CGSize(width: 140, height: 10000))
+
+    // then: both are the full text's size
+    expect(shortSize) == tallSize
+    expect(shortSize.height) > 20
+  }
+
+  func test_sizeThatFits_followsTheSettings() {
+    // given: a label view with a text that wraps to several lines
+    let labelView = TextLabelView(frame: .zero)
+    labelView.attributedString = NSAttributedString(
+      string: "A paragraph that wraps across several lines in a narrow view.",
+      attributes: [.font: Font.systemFont(ofSize: 15)]
+    )
+    let proposedSize = CGSize(width: 140, height: 10000)
+    let wrappedSize = labelView.sizeThatFits(proposedSize)
+
+    // when: limiting it to one line
+    labelView.numberOfLines = 1
+    let oneLineSize = labelView.sizeThatFits(proposedSize)
+
+    // then: it's one line tall
+    expect(oneLineSize.height) < wrappedSize.height
+
+    // when: setting a new text
+    labelView.numberOfLines = 0
+    labelView.attributedString = NSAttributedString(string: "Short", attributes: [.font: Font.systemFont(ofSize: 15)])
+
+    // then: it fits the new text
+    expect(labelView.sizeThatFits(proposedSize).width) < wrappedSize.width
+  }
+
   // MARK: - Helpers
 
   private struct DrawingCase {

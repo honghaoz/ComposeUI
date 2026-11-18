@@ -41,6 +41,17 @@ import UIKit
 /// lays out the text with TextKit 1, as ComposeUI measures text, and draws it, without a text view's machinery for
 /// editing, selection and scrolling.
 ///
+/// It can also be used on its own, as a label:
+///
+/// ```swift
+/// let label = TextLabelView(frame: .zero)
+/// label.attributedString = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 15)])
+/// label.numberOfLines = 1
+/// label.frame.size = label.sizeThatFits(CGSize(width: 200, height: CGFloat.greatestFiniteMagnitude))
+/// ```
+///
+/// The view shows its text as it's set. Unlike `TextNode`, it doesn't apply a theme to the text's themed attributes.
+///
 /// On macOS, it doesn't post frame-change notifications by default.
 public final class TextLabelView: View, ScheduledTextRemovable {
 
@@ -48,7 +59,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   ///
   /// Setting a text equal to the shown one leaves the shown text in place, so to change an attribute object, such as an
   /// attachment's image, set a text with a new object instead of changing the object.
-  public internal(set) var attributedString: NSAttributedString {
+  public var attributedString: NSAttributedString {
     get {
       lastText
     }
@@ -87,7 +98,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   }
 
   /// The maximum number of lines that the view shows, 0 for no limit.
-  public internal(set) var numberOfLines: Int = 0 {
+  public var numberOfLines: Int = 0 {
     didSet {
       setNeedsDisplayForText()
     }
@@ -95,7 +106,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The line break mode of the text: `.byCharWrapping` breaks every line between characters, and the other modes set
   /// how the last line ends.
-  public internal(set) var lineBreakMode: NSLineBreakMode = .byWordWrapping {
+  public var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       setNeedsDisplayForText()
     }
@@ -103,7 +114,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The inset of the text from the view's edges, the width from the left and right edges and the height from the top
   /// and bottom edges.
-  public internal(set) var textContainerInset: CGSize = .zero {
+  public var textContainerInset: CGSize = .zero {
     didSet {
       setNeedsDisplayForText()
     }
@@ -167,6 +178,61 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   #if canImport(AppKit)
   override public var isFlipped: Bool { true }
   #endif
+
+  // MARK: - Sizing
+
+  #if canImport(AppKit)
+  /// Returns the size that fits the text, as `TextNode` measures it.
+  ///
+  /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
+  /// isn't limited.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  public func sizeThatFits(_ size: CGSize) -> CGSize {
+    fittingSize(for: size)
+  }
+  #endif
+
+  #if canImport(UIKit)
+  /// Returns the size that fits the text, as `TextNode` measures it.
+  ///
+  /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
+  /// isn't limited.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  override public func sizeThatFits(_ size: CGSize) -> CGSize {
+    fittingSize(for: size)
+  }
+  #endif
+
+  /// Returns the size that fits the text in a size.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  private func fittingSize(for size: CGSize) -> CGSize {
+    let textSize = lastText.boundingRectSize(
+      numberOfLines: numberOfLines,
+      layoutWidth: size.width - textContainerInset.width * 2,
+      lineBreakMode: lineBreakMode.measuringLineBreakMode
+    )
+    return Self.fittingSize(textSize: textSize, textContainerInset: textContainerInset)
+  }
+
+  /// Returns the size of a label that shows a text of a size, with an inset.
+  ///
+  /// - Parameters:
+  ///   - textSize: The text's size.
+  ///   - textContainerInset: The inset of the text from the label's edges.
+  ///   - adjustment: The size to add to the text's size, such as a text node's `adjustIntrinsicTextSize` adds.
+  /// - Returns: The label's size, rounded up to whole points.
+  static func fittingSize(textSize: CGSize, textContainerInset: CGSize, adjustment: CGSize = .zero) -> CGSize {
+    CGSize(
+      width: textSize.width + textContainerInset.width * 2 + adjustment.width,
+      height: textSize.height + textContainerInset.height * 2 + adjustment.height
+    ).roundedUp(scaleFactor: 1)
+  }
 
   /// Resets the view for a reuse by a text node.
   ///
