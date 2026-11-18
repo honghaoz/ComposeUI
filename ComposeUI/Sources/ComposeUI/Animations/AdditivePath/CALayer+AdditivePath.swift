@@ -309,7 +309,11 @@ private extension CALayer {
       keyframeAnimation.duration = keyframes.duration
       keyframeAnimation.fillMode = .both
       keyframeAnimation.applyPreferredFrameRateRange()
-      keyframeAnimation.beginTime = CAAnimation.addedBeginTime(at: now)
+
+      // the keyframes begin at the commit while the animation clock begins animations there, see
+      // `AnimationClock.beginsAtCommit`, unless a change begins later, which would then begin late by the commit's time
+      keyframeAnimation.beginTime = changes.changes.allSatisfy { $0.beginTime <= now } ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: now)
+
       animation = keyframeAnimation
     }
 

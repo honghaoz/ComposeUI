@@ -462,8 +462,12 @@ extension CALayer {
     animation.applyPreferredFrameRateRange()
 
     // keyframes that start now begin at the commit while the animation clock begins animations there, see
-    // `AnimationClock.beginsAtCommit`
-    animation.beginTime = sampler.startTime == now ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: sampler.startTime)
+    // `AnimationClock.beginsAtCommit`, unless a change begins later, which would then begin late by the commit's time
+    if sampler.startTime == now, (changes?.lastBeginTime ?? now) <= now {
+      animation.beginTime = CAAnimation.addedBeginTime(at: now)
+    } else {
+      animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
+    }
 
     animation.recordedAtForCommit = animation.beginTime == 0 ? now : nil
     animation.transform = transform

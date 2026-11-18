@@ -81,6 +81,11 @@ struct TransformChanges {
     )
   }
 
+  /// The time the last change begins, in the layer's time space.
+  var lastBeginTime: TimeInterval {
+    rest.reduce(first.motion.beginTime) { max($0, $1.motion.beginTime) }
+  }
+
   /// The time the first change begins, in the layer's time space.
   var beginTime: TimeInterval {
     rest.reduce(first.motion.beginTime) { min($0, $1.motion.beginTime) }

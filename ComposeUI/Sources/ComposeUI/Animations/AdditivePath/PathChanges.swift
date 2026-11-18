@@ -199,10 +199,7 @@ struct PathChanges {
     changes.allSatisfy { $0.offset.hasSameSegments(as: path) }
   }
 
-  /// Removes the changes that have landed.
-  ///
-  /// - Parameter now: The layer's current time.
-  /// Makes every change begin later by a time, see `CALayer.pathChanges(forKeyPath:at:)`.
+  /// Makes every change begin later by a time, see `PathChangesBox.changes(beginningWith:)`.
   ///
   /// - Parameter delay: The time.
   mutating func delay(by delay: TimeInterval) {
@@ -219,6 +216,9 @@ struct PathChanges {
     }
   }
 
+  /// Removes the changes that have landed.
+  ///
+  /// - Parameter now: The layer's current time.
   mutating func removeLandedChanges(at now: TimeInterval) {
     changes.removeAll { $0.remainingTime(at: now) == nil }
   }

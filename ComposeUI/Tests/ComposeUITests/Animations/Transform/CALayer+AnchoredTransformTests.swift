@@ -200,6 +200,59 @@ class CALayer_AnchoredTransformTests: XCTestCase {
     expect(committedBasic.committedChanges?.beginTime) == 100.02
   }
 
+  func test_updateTransform_duringAResize_atTheCommit_followsTheSize() throws {
+    // given: the keyframes of a scale about a corner during a resize, made at the clock's time
+    func keyframes(beginsAtCommit: Bool) throws -> [CATransform3D] {
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      let scale = CATransform3DMakeScale(2, 2, 1)
+      layer.updateTransform(scale, anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: nil)
+      let oldSize = layer.bounds.size
+      AnimationClock.beginsAtCommit = beginsAtCommit
+      defer {
+        AnimationClock.beginsAtCommit = false
+      }
+      AnimationClock.sharingTime(at: 100) {
+        layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+        layer.updateTransform(scale, anchor: .topLeft, oldSize: oldSize, animationTiming: .linear(duration: 1))
+      }
+      let animation = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+      expect(animation.beginTime) == (beginsAtCommit ? 0 : 100)
+      return try (animation.values ?? []).map { try unwrap($0 as? NSValue).caTransform3DValue }
+    }
+
+    // when: the resize and the keyframes begin at the commit
+    let atTheCommit = try keyframes(beginsAtCommit: true)
+
+    // then: the keyframes follow the size as they do at the clock's time, since the resize begins at the commit with them
+    let atTheClocksTime = try keyframes(beginsAtCommit: false)
+    expect(atTheCommit.count) == atTheClocksTime.count
+    for (transform, expected) in zip(atTheCommit, atTheClocksTime) {
+      expect(CATransform3DEqualToTransform(transform, expected)) == true
+    }
+  }
+
+  func test_updateTransform_atTheCommit_withADelayedChange_keepsTheClocksTime() throws {
+    // given: a layer whose scale about its center changes after a delay, while the animation clock begins animations at
+    // the commit
+    let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)
+    let layer = timeline.layer
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+    layer.updateTransform(CATransform3DMakeScale(2, 2, 1), anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1, delay: 0.5))
+
+    // when: another change stacks on it at once
+    layer.updateTransform(CATransform3DMakeScale(3, 3, 1), anchor: .topLeft, oldSize: layer.bounds.size, animationTiming: .linear(duration: 1))
+
+    // then: the keyframes begin at the clock's time, so that the delayed change begins when it's due
+    let keyframes = try unwrap(layer.animation(forKey: "transform") as? AnchoredTransformKeyframeAnimation)
+    expect(keyframes.beginTime) == 100
+    expect(keyframes.recordedAtForCommit) == nil
+    expect(keyframes.committedChanges?.lastBeginTime) == 100.5
+  }
+
   func test_updateTransform_withADelay_atTheCommit_keepsItsBeginTime() throws {
     // given: a layer at rest, while the animation clock begins animations at the commit
     let timeline = PausedTimeline(frame: CGRect(x: 0, y: 0, width: 100, height: 50), anchorPoint: Constants.center)

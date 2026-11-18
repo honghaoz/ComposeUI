@@ -91,8 +91,7 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     view.layoutIfNeeded()
     let row = try unwrap(rowLayer)
     addTeardownBlock {
-      scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+      self.restorePortrait(of: scene)
     }
     let portraitWidth = view.bounds.width
     pauseTime(of: window.contentView.layer)
@@ -137,8 +136,7 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     shadowLayer = row.superlayer?.sublayers?.first { $0 is DropShadowLayer }
     let shadow = try unwrap(shadowLayer, "the drop shadow's layer")
     addTeardownBlock {
-      scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
-      RunLoop.main.run(until: Date(timeIntervalSinceNow: 1))
+      self.restorePortrait(of: scene)
     }
 
     // when: rotating to landscape, which UIKit commits in a later turn of the run loop than the layout
@@ -155,6 +153,21 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
   #endif
 
   // MARK: - Helpers
+
+  #if os(iOS)
+
+  /// Rotates the scene back to portrait and waits until it is, so that the next test starts in portrait.
+  @available(iOS 16.0, *)
+  private func restorePortrait(of scene: UIWindowScene) {
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+    let deadline = Date(timeIntervalSinceNow: Constants.rotationTimeout)
+    while scene.effectiveGeometry.interfaceOrientation != .portrait, Date() < deadline {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
+    }
+    expect(scene.effectiveGeometry.interfaceOrientation) == .portrait
+  }
+
+  #endif
 
   /// The last `bounds.size` animation of a layer.
   private func sizeAnimation(of layer: CALayer) -> CABasicAnimation? {
@@ -218,6 +231,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
     /// How long to wait for the commit that begins the view's animation.
     static let commitTimeout: TimeInterval = 2
+
+    /// How long to wait for the scene to rotate back to portrait.
+    static let rotationTimeout: TimeInterval = 2
 
     /// How long each run loop turn of a wait runs for.
     static let pollInterval: TimeInterval = 0.005
