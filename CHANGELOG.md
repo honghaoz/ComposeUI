@@ -37,6 +37,7 @@
 
 ### Changes
 
+- `TextLabelView` can be used on its own, as a static label: its `attributedString`, `numberOfLines`, `lineBreakMode` and `textContainerInset` are settable, and `sizeThatFits(_:)` measures it as `TextNode` does. ([#326](https://github.com/honghaoz/ComposeUI/pull/326))
 - Added `previousRenderBounds` and `renderBounds` to `RenderableUpdateContext`, which tell a scroll from a resize. ([#24](https://github.com/honghaoz/ComposeUI/pull/24))
 - Added a scale transition, `.scale(from:anchor:timing:options:)`, and `UnitPoint`, which moved from ChouTiUI. ([#10](https://github.com/honghaoz/ComposeUI/pull/10), [#255](https://github.com/honghaoz/ComposeUI/pull/255))
 - Added `InsertTransition.prepareForTakeover(renderable:)`, and `revivalPosition` and `revivalTransform` in the insert transition context, for transitions that take over a removal. ([#6](https://github.com/honghaoz/ComposeUI/pull/6), [#10](https://github.com/honghaoz/ComposeUI/pull/10), [#74](https://github.com/honghaoz/ComposeUI/pull/74))
