@@ -185,9 +185,10 @@ extension CALayer {
 
     let now = currentTime
 
-    // an animation added at the current time begins now, so the layer still shows the motion it replaced
+    // an animation added at the current time, or at the coming commit, begins now, so the layer still shows the motion
+    // it replaced
     if opacityAnimations.count == 1,
-       opacityAnimations[0].animation.beginTime == CAAnimation.beginTime(at: now),
+       opacityAnimations[0].animation.beginTime == 0 || opacityAnimations[0].animation.beginTime == CAAnimation.beginTime(at: now),
        let replacedOpacity = opacityAnimations[0].animation.value(forKey: RetargetConstants.replacedOpacityKey) as? Float,
        let replacedVelocity = opacityAnimations[0].animation.value(forKey: RetargetConstants.replacedVelocityKey) as? Double
     {

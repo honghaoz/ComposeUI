@@ -56,7 +56,7 @@ public extension CALayer {
       let sizeShare = SIMD2(anchorPoint.x, anchorPoint.y) * sizeOffset
       let originPart = positionOffset - sizeShare
 
-      let beginTime = CAAnimation.beginTime(at: currentTime, delay: timing.delay)
+      let beginTime = CAAnimation.addedBeginTime(at: currentTime, delay: timing.delay)
       addFrameAnimation(
         keyPath: "position",
         from: CGPoint(x: positionOffset.x, y: positionOffset.y),

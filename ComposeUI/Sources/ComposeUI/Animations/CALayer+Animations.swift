@@ -208,7 +208,7 @@ public extension CALayer {
     animation.fromValue = from(layer)
     let toValue = to(layer)
     animation.toValue = toValue
-    animation.beginTime = CAAnimation.beginTime(at: currentTime, delay: timing.delay)
+    animation.beginTime = CAAnimation.addedBeginTime(at: currentTime, delay: timing.delay)
 
     updateAnimation?(animation)
 

@@ -83,6 +83,14 @@ struct TransformMotion {
     self.beginTime = beginTime
   }
 
+  /// The change, beginning later by a time.
+  ///
+  /// - Parameter delay: The time.
+  /// - Returns: The change.
+  func delayed(by delay: TimeInterval) -> TransformMotion {
+    TransformMotion(interpolator: interpolator, curve: curve, speed: speed, beginTime: beginTime + delay)
+  }
+
   /// The time the change ends, in the layer's time space.
   var endTime: TimeInterval {
     beginTime + curve.duration / speed

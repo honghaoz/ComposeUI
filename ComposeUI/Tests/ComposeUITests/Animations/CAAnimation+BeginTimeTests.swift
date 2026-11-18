@@ -57,4 +57,22 @@ class CAAnimation_BeginTimeTests: XCTestCase {
     expect(CAAnimation.beginTime(at: -0.5, delay: 0.5)) == .leastNormalMagnitude
     expect(CAAnimation.beginTime(at: -0.5)) == -0.5
   }
+
+  func test_addedBeginTime() {
+    // then: an animation added now begins at the time, or the delay after it
+    expect(CAAnimation.addedBeginTime(at: 100)) == 100
+    expect(CAAnimation.addedBeginTime(at: 100, delay: 0.5)) == 100.5
+
+    // when: the animation clock begins animations at the commit
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+
+    // then: an animation without a delay begins at the commit, and one with a delay keeps its begin time
+    expect(CAAnimation.addedBeginTime(at: 100)) == 0
+    expect(CAAnimation.addedBeginTime(at: 100, delay: 0)) == 0
+    expect(CAAnimation.addedBeginTime(at: 100, delay: -0.5)) == 0
+    expect(CAAnimation.addedBeginTime(at: 100, delay: 0.5)) == 100.5
+  }
 }

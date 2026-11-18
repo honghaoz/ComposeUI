@@ -188,6 +188,24 @@ class CALayer_OpacityTests: XCTestCase {
     expect(state.velocity).to(beApproximatelyEqual(to: 0.1, within: 1e-3))
   }
 
+  func test_interruptedOpacityState_animationBeginningAtTheCommit_hasTheReplacedVelocity() throws {
+    // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
+    let layer = CALayer()
+    layer.opacity = 1
+    addInFlightAnimation(to: layer, from: -1, progress: 0.5, duration: 10)
+
+    // when: an animation to 0.8 that begins at the commit replaces it
+    AnimationClock.beginsAtCommit = true
+    layer.animateOpacity(to: 0.8, timing: .linear(duration: 1))
+    AnimationClock.beginsAtCommit = false
+
+    // then: the animation hasn't begun, so the layer still shows 0.5, rising at 0.1 per second
+    expect(try unwrap(layer.animation(forKey: "opacity")).beginTime) == 0
+    let state = try layer.interruptedOpacityState().unwrap()
+    expect(state.value).to(beApproximatelyEqual(to: 0.5, within: 1e-3))
+    expect(state.velocity).to(beApproximatelyEqual(to: 0.1, within: 1e-3))
+  }
+
   func test_interruptedOpacityState_animationNotBegun_opacitySetDirectly_hasTheReplacedState() throws {
     // given: a layer at 1, halfway through a 10 s fade in from 0, showing 0.5 and rising at 0.1 per second
     let layer = CALayer()

@@ -59,6 +59,62 @@ class CALayer_AdditivePathTests: XCTestCase {
     expect(layer.path) == rect(inset: 10)
   }
 
+  func test_animatePath_atTheCommit_beginsAtTheCommit_andItsChangesWithIt() throws {
+    // given: a shape layer with a rect path, while the animation clock begins animations at the commit
+    let layer = makeLayer()
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+
+    // when: animating the path at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2))
+    }
+
+    // then: the animation begins at the commit, and its change, recorded at 1000, begins with it: at 1000 until the
+    // commit, and at the commit's time once committed
+    let animation = try unwrap(layer.animation(forKey: "path") as? CABasicAnimation)
+    expect(animation.beginTime) == 0
+    let box = try unwrap(animation.value(forKey: PathChangesBox.key) as? PathChangesBox)
+    expect(box.recordedAtForCommit) == 1000
+    expect(box.changes(beginningWith: 0).changes.map(\.beginTime)) == [1000]
+    expect(box.changes(beginningWith: 1000.02).changes.map(\.beginTime)) == [1000.02]
+
+    // when: animating the path again a second later, as keyframes of both changes
+    AnimationClock.sharingTime(at: 1001) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 20), timing: .linear(duration: 2))
+    }
+
+    // then: the keyframes begin at the commit, and the changes begin later by the time the commit comes after 1001
+    let keyframes = try unwrap(layer.animation(forKey: "path") as? CAKeyframeAnimation)
+    expect(keyframes.beginTime) == 0
+    let keyframesBox = try unwrap(keyframes.value(forKey: PathChangesBox.key) as? PathChangesBox)
+    expect(keyframesBox.recordedAtForCommit) == 1001
+    expect(keyframesBox.changes(beginningWith: 1001.02).changes.map(\.beginTime)) == [1000.02, 1001.02]
+  }
+
+  func test_animatePath_atTheCommit_withADelay_keepsItsBeginTime() throws {
+    // given: a shape layer with a rect path, while the animation clock begins animations at the commit
+    let layer = makeLayer()
+    AnimationClock.beginsAtCommit = true
+    defer {
+      AnimationClock.beginsAtCommit = false
+    }
+
+    // when: animating the path with a delay at 1000
+    AnimationClock.sharingTime(at: 1000) {
+      layer.animatePath(keyPath: "path", to: rect(inset: 10), timing: .linear(duration: 2, delay: 0.5))
+    }
+
+    // then: the animation begins after the delay, as its change does
+    let animation = try unwrap(layer.animation(forKey: "path") as? CABasicAnimation)
+    expect(animation.beginTime) == 1000.5
+    let box = try unwrap(animation.value(forKey: PathChangesBox.key) as? PathChangesBox)
+    expect(box.recordedAtForCommit) == nil
+    expect(box.changes(beginningWith: 1000.5).changes.map(\.beginTime)) == [1000.5]
+  }
+
   func test_animatePath_withoutPath_setsThePath() {
     // given: a shape layer without a path
     let layer = CAShapeLayer()

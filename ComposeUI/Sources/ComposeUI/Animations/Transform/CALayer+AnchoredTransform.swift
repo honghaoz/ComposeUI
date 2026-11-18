@@ -201,7 +201,7 @@ extension CALayer {
       )
     }
 
-    var changes = keepsCourse ? anchoredAnimation?.changes : nil
+    var changes = keepsCourse ? anchoredAnimation?.committedChanges : nil
     if !keepsCourse, let motionTiming = animationTiming == nil ? glideTiming(anchoredAnimation: anchoredAnimation, keys: keys, at: now) : timing {
       if animationTiming != nil, let stackedChanges = stackedChanges(on: anchoredAnimation, to: transform, pivotOffset: pivotOffset, timing: motionTiming, at: now) {
         changes = stackedChanges
@@ -271,7 +271,7 @@ extension CALayer {
   {
     guard let anchoredAnimation,
           anchoredAnimation.pivotOffset == pivotOffset,
-          let changes = anchoredAnimation.changes,
+          let changes = anchoredAnimation.committedChanges,
           changes.endTime > now,
           let interpolator = TransformInterpolator(from: anchoredAnimation.transform, to: transform),
           let stackedChanges = changes.stacking(TransformMotion(interpolator: interpolator, timing: timing, at: now), at: now)
@@ -299,7 +299,7 @@ extension CALayer {
     let neverFinishes: Bool
     if let anchoredAnimation {
       // keyframes outlast the transform's changes while the size animates, and the transform is at rest after them
-      guard let changes = anchoredAnimation.changes, changes.endTime > now else {
+      guard let changes = anchoredAnimation.committedChanges, changes.endTime > now else {
         return nil
       }
       remainingTime = changes.endTime - now
@@ -346,7 +346,7 @@ extension CALayer {
     if let anchoredAnimation {
       // the animation shows the transform's changes, which give the transform exactly, unlike keyframes in between, and
       // the transform is the target once its changes end, see `addKeyframeAnimation`
-      let changes = anchoredAnimation.changes.flatMap { now < $0.endTime ? $0 : nil }
+      let changes = anchoredAnimation.committedChanges.flatMap { now < $0.endTime ? $0 : nil }
       shown = changes.map { $0.transform(at: now) } ?? anchoredAnimation.transform
       shownPivotOffset = anchoredAnimation.pivotOffset
     } else {
@@ -391,12 +391,18 @@ extension CALayer {
       basicAnimation: { AnchoredTransformBasicAnimation() },
       springAnimation: { AnchoredTransformSpringAnimation() }
     )
+
     let beginTime = CAAnimation.beginTime(at: now, delay: timing.delay)
     animation.keyPath = "transform"
     animation.fromValue = NSValue(caTransform3D: Self.anchoredTransform(start, pivotOffset: pivotOffset, size: size))
     animation.toValue = NSValue(caTransform3D: newTransform)
-    animation.beginTime = beginTime
+
+    // the motion begins at the time, and the animation at the commit while the animation clock begins animations there,
+    // see `AnimationClock.beginsAtCommit`
+    animation.beginTime = CAAnimation.addedBeginTime(at: now, delay: timing.delay)
+
     let anchoredAnimation = animation as! any AnchoredTransformMotionAnimation // swiftlint:disable:this force_cast
+    anchoredAnimation.recordedAtForCommit = animation.beginTime == 0 ? now : nil
     anchoredAnimation.transform = transform
     anchoredAnimation.pivotOffset = pivotOffset
     anchoredAnimation.motion = TransformMotion(interpolator: interpolator, animation: animation, beginTime: beginTime)
@@ -449,10 +455,17 @@ extension CALayer {
     animation.keyPath = "transform"
     animation.values = sampler.keyframes().map { NSValue(caTransform3D: $0) }
     animation.duration = sampler.duration
+
     // backwards fill holds the first keyframe until the transform or the size begins to move
     animation.fillMode = .both
+
     animation.applyPreferredFrameRateRange()
-    animation.beginTime = CAAnimation.beginTime(at: sampler.startTime)
+
+    // keyframes that start now begin at the commit while the animation clock begins animations there, see
+    // `AnimationClock.beginsAtCommit`
+    animation.beginTime = sampler.startTime == now ? CAAnimation.addedBeginTime(at: now) : CAAnimation.beginTime(at: sampler.startTime)
+
+    animation.recordedAtForCommit = animation.beginTime == 0 ? now : nil
     animation.transform = transform
     animation.pivotOffset = pivotOffset
     animation.changes = changes
