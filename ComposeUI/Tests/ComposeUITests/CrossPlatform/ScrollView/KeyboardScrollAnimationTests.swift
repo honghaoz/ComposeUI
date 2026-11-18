@@ -360,6 +360,138 @@ class KeyboardScrollAnimationTests: XCTestCase {
     expect(scrollView.contentOffset.y) > 500
   }
 
+  func test_settingADifferentOffsetDuringAGlide_stopsTheGlide() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view, gliding its content down by 200 points
+    let (_, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+    expect(animation.isRunning) == true
+
+    // when: the offset is set 20 pixels away from where the glide has the content, and a frame steps the animation
+    let offset = CGPoint(x: 0, y: scrollView.contentOffset.y + 20 * scrollView.pixelSize.height)
+    scrollView.contentOffset = offset
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the glide stops, and the content stays where the offset was set
+    expect(animation.isRunning) == false
+    expect(scrollView.contentOffset) == offset
+  }
+
+  func test_settingTheCurrentOffsetDuringAGlide_leavesTheGlideRunning() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view, gliding its content down by 200 points
+    let (_, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+
+    // when: the offset is set to where the glide has the content, and a frame steps the animation
+    let offset = scrollView.contentOffset
+    scrollView.contentOffset = offset
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the glide goes on, and moves the content on
+    expect(animation.isRunning) == true
+    expect(scrollView.contentOffset.y) > offset.y
+  }
+
+  func test_layoutSettingADifferentOffsetDuringAGlideFrame_stopsTheGlide() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    // given: a scroll view in a window, gliding its content down by 200 points, whose next layout sets a different
+    // offset
+    let window = TestWindow()
+    let scrollView = LayoutActionScrollView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    scrollView.contentSize = CGSize(width: 100, height: 10000)
+    window.contentView().addSubview(scrollView)
+    let animation = KeyboardScrollAnimation(scrollView: scrollView)
+    defer { animation.stop() }
+    animation.glide(toward: .down, by: 200, at: Constants.startTime)
+    animation.step(at: Constants.startTime + 0.05)
+    scrollView.nextLayoutAction = {
+      scrollView.contentOffset = CGPoint(x: 0, y: 500)
+    }
+
+    // when: a frame moves the content, which lays the scroll view out
+    animation.step(at: Constants.startTime + 0.06)
+
+    // then: the layout's offset holds
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 500)
+
+    // when: the next frame steps the animation
+    animation.step(at: Constants.startTime + 0.07)
+
+    // then: the glide stops, and the content stays where the layout set it
+    expect(animation.isRunning) == false
+    expect(scrollView.contentOffset) == CGPoint(x: 0, y: 500)
+    withExtendedLifetime(window) {}
+  }
+
+  func test_glideInAMagnifiedScrollView_keepsRunningAcrossFrames() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    for magnification: CGFloat in [1.1, 1.3] {
+      // given: a scroll view magnified by a scale at which the clip view keeps a set offset with floating-point noise
+      let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 10000))
+      scrollView.magnification = magnification
+      let animation = KeyboardScrollAnimation(scrollView: scrollView)
+      defer { animation.stop() }
+
+      // when: a glide steps two frames
+      animation.glide(toward: .down, by: 200, at: Constants.startTime)
+      animation.step(at: Constants.startTime + 0.01)
+      animation.step(at: Constants.startTime + 0.02)
+
+      // then: the glide goes on
+      expect(animation.isRunning) == true
+      withExtendedLifetime(window) {}
+    }
+  }
+
+  func test_secondGlideInAMagnifiedScrollView_goesOnAtSpeed() throws {
+    guard #available(macOS 14.0, *) else {
+      return
+    }
+
+    for magnification: CGFloat in [1, 1.1, 1.3] {
+      // given: a scroll view, magnified by a scale at which the clip view keeps a set offset with floating-point noise
+      // or not, gliding its content down by 200 points at speed, measured over a 10 ms frame
+      let (window, scrollView) = makeScrollView(contentSize: CGSize(width: 100, height: 100000))
+      scrollView.magnification = magnification
+      let animation = KeyboardScrollAnimation(scrollView: scrollView)
+      defer { animation.stop() }
+      animation.glide(toward: .down, by: 200, at: Constants.startTime)
+      animation.step(at: Constants.startTime + 0.09)
+      let offsetBefore = scrollView.contentOffset.y
+      animation.step(at: Constants.startTime + 0.1)
+      let distanceBefore = scrollView.contentOffset.y - offsetBefore
+
+      // when: another glide starts from there, and a frame 10 ms later steps the animation
+      animation.glide(toward: .down, by: 200, at: Constants.startTime + 0.1)
+      let offsetAfter = scrollView.contentOffset.y
+      animation.step(at: Constants.startTime + 0.11)
+      let distanceAfter = scrollView.contentOffset.y - offsetAfter
+
+      // then: the new glide goes on at about the same speed, instead of easing in from rest
+      expect(distanceAfter) >= distanceBefore * 0.8
+      withExtendedLifetime(window) {}
+    }
+  }
+
   func test_scrollingDisabled_bringsStretchedContentIntoTheRangeAndStops() throws {
     guard #available(macOS 14.0, *) else {
       return
@@ -1109,6 +1241,21 @@ class KeyboardScrollAnimationTests: XCTestCase {
     window.contentView().addSubview(scrollView)
     window.makeFirstResponder(scrollView)
     return (window, scrollView)
+  }
+
+  /// A scroll view that runs an action once, at its next layout.
+  private final class LayoutActionScrollView: ScrollView {
+
+    /// The action to run at the next layout.
+    var nextLayoutAction: (() -> Void)?
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+
+      let action = nextLayoutAction
+      nextLayoutAction = nil
+      action?()
+    }
   }
 
   // MARK: - Constants

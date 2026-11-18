@@ -53,6 +53,9 @@ open class ScrollView: NSScrollView {
   /// The offset of the visible area's origin from the content's origin, like `UIScrollView`'s `contentOffset`.
   ///
   /// As on UIKit, setting it rounds the offset to the nearest pixel, and keeps it there, even outside the scrollable range.
+  ///
+  /// Setting it to an offset that rounds to a different pixel stops a running keyboard scroll animation, which leaves
+  /// the content where it was set.
   public var contentOffset: CGPoint {
     get {
       contentView.bounds.origin
