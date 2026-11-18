@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## [0.0.6](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.6) (2026-11-18)
 
 ### Breaking Changes
 
@@ -57,6 +57,7 @@
 - Animations begin at a time read once per turn of the main run loop. A test that compares animations with the media time should turn the run loop first. ([#87](https://github.com/honghaoz/ComposeUI/pull/87))
 - Debug builds assert on invalid `AnimationTiming` values, which fall back to defaults. ([#62](https://github.com/honghaoz/ComposeUI/pull/62))
 - `oldFrame` in the update and remove contexts is the `newFrame` of the renderable's previous update, so the two are equal when the frame didn't change. ([#269](https://github.com/honghaoz/ComposeUI/pull/269))
+- On macOS, a scroll view, such as a `ComposeView` or `ButtonView`, clips its content as `clipsToBounds` says. ([#306](https://github.com/honghaoz/ComposeUI/pull/306))
 - On macOS, a trackpad scroll stays with its scroll view until its glide ends, and a mouse wheel scrolls the innermost scroll view that can scroll in its direction. ([#114](https://github.com/honghaoz/ComposeUI/pull/114), [#119](https://github.com/honghaoz/ComposeUI/pull/119))
 - On macOS, the arrow and page keys scroll a `ScrollView`, such as a `ComposeView`, while the keyboard focus is in it, an arrow key by a page with Option and to the edge with Command. ([#297](https://github.com/honghaoz/ComposeUI/pull/297), [#299](https://github.com/honghaoz/ComposeUI/pull/299), [#302](https://github.com/honghaoz/ComposeUI/pull/302))
 - On macOS, view frame changes no longer slow down as text views come and go. A `BaseTextView` subclass that observes `NSView.frameDidChangeNotification` does so with another object. ([#160](https://github.com/honghaoz/ComposeUI/pull/160))
