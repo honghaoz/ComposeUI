@@ -462,6 +462,21 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(size) == .zero
   }
 
+  func test_multiline_noLayoutWidth_wrapsInsteadOfLayingOutOneLine() {
+    // given: a text that fits on one line when its width isn't limited
+    let attributedString = NSAttributedString(string: "Hello world", attributes: [.font: Font.systemFont(ofSize: 15)])
+    let oneLineSize = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 10000)
+
+    for layoutWidth: CGFloat in [1, 0, -10] {
+      // when: measuring it in a layout width of one point or less, such as when an inset uses up the width
+      let size = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: layoutWidth)
+
+      // then: it wraps as narrowly as it can, instead of laying out on one line as if the width had no limit
+      expect(size.width, "\(layoutWidth)") < oneLineSize.width
+      expect(size.height, "\(layoutWidth)") > oneLineSize.height
+    }
+  }
+
   func test_multiline_byWordWrapping_paragraphStyle_byWordWrapping_systemFont() throws {
     // given: an attributed string with system font and .byWordWrapping paragraph style
     let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)

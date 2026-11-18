@@ -376,7 +376,9 @@ private final class TextMeasuringSystem {
   ///   - lineBreakMode: The line break mode to use for the layout.
   /// - Returns: The size that the text lays out in.
   func size(of text: NSAttributedString, numberOfLines: Int, layoutWidth: CGFloat, lineBreakMode: NSLineBreakMode) -> CGSize {
-    textContainer.size = CGSize(width: layoutWidth, height: .greatestFiniteMagnitude)
+    // a text container of zero width lays out without a width limit, so a width that an inset uses up wraps the text as
+    // narrowly as it can instead of on one line, keeping a narrower layout from measuring wider
+    textContainer.size = CGSize(width: max(layoutWidth, 1), height: .greatestFiniteMagnitude)
     textContainer.maximumNumberOfLines = numberOfLines
     layoutManager.setLineBreakMode(lineBreakMode, in: textContainer)
     textStorage.setAttributedString(text)

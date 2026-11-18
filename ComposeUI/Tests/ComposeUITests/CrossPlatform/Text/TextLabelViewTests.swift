@@ -821,6 +821,24 @@ class TextLabelViewTests: XCTestCase {
     }
   }
 
+  func test_sizeThatFits_insetUsingUpTheWidth_neverFitsWider() {
+    // given: a wrapping label with 16 points of inset on each side
+    let labelView = TextLabelView(frame: .zero)
+    labelView.attributedString = NSAttributedString(string: "Hello world", attributes: [.font: Font.systemFont(ofSize: 15)])
+    labelView.textContainerInset = CGSize(width: 16, height: 0)
+
+    // when: the proposed width leaves one point, zero points, or less than zero points for the text
+    let widths: [CGFloat] = [33, 32, 31, 0]
+    let sizes = widths.map { labelView.sizeThatFits(CGSize(width: $0, height: 10000)) }
+
+    // then: a narrower proposal never fits wider, and the text wraps instead of laying out on one line
+    let oneLineSize = labelView.sizeThatFits(CGSize(width: 10000, height: 10000))
+    for (index, size) in sizes.enumerated() {
+      expect(size.width, "\(widths[index])") <= sizes[0].width
+      expect(size.height, "\(widths[index])") > oneLineSize.height
+    }
+  }
+
   func test_sizeThatFits_emptyText_isTheInset() {
     // given: a label view without a text, with an inset
     let labelView = TextLabelView(frame: .zero)
