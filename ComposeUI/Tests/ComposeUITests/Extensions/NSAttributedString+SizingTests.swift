@@ -462,6 +462,18 @@ class NSAttributedString_SizingTests: XCTestCase {
     expect(size) == .zero
   }
 
+  func test_multiline_zeroLayoutWidth_hasNoWidthLimit() {
+    // given: a text that fits on one line when its width isn't limited
+    let attributedString = NSAttributedString(string: "Hello world", attributes: [.font: Font.systemFont(ofSize: 15)])
+    let oneLineSize = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 10000)
+
+    // when: measuring it in a layout width of zero
+    let size = attributedString.boundingRectSize(numberOfLines: 0, layoutWidth: 0)
+
+    // then: it lays out on one line, as a zero width means no limit
+    expect(size) == oneLineSize
+  }
+
   func test_multiline_byWordWrapping_paragraphStyle_byWordWrapping_systemFont() throws {
     // given: an attributed string with system font and .byWordWrapping paragraph style
     let attributedString = try makeAttributedString(font: Font.systemFont(ofSize: 16), lineBreakMode: .byWordWrapping)

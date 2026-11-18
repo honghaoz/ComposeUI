@@ -37,9 +37,17 @@ import UIKit
 
 /// A view that draws a text that's neither editable nor selectable.
 ///
-/// `TextNode` shows a text that the user can neither edit nor select in this view, instead of in a `BaseTextView`. It
-/// lays out the text with TextKit 1, as ComposeUI measures text, and draws it, without a text view's machinery for
-/// editing, selection and scrolling.
+/// It lays out the text with TextKit 1 and draws it, without a text view's machinery for editing, selection and
+/// scrolling.
+///
+/// ```swift
+/// let label = TextLabelView(frame: .zero)
+/// label.attributedString = NSAttributedString(string: "Hello", attributes: [.font: Font.systemFont(ofSize: 15)])
+/// label.numberOfLines = 1
+/// label.frame.size = label.sizeThatFits(CGSize(width: 200, height: CGFloat.greatestFiniteMagnitude))
+/// ```
+///
+/// The view shows its text as it's set, without applying a theme to the text's themed attributes.
 ///
 /// On macOS, it doesn't post frame-change notifications by default.
 public final class TextLabelView: View, ScheduledTextRemovable {
@@ -48,7 +56,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   ///
   /// Setting a text equal to the shown one leaves the shown text in place, so to change an attribute object, such as an
   /// attachment's image, set a text with a new object instead of changing the object.
-  public internal(set) var attributedString: NSAttributedString {
+  public var attributedString: NSAttributedString {
     get {
       lastText
     }
@@ -87,7 +95,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   }
 
   /// The maximum number of lines that the view shows, 0 for no limit.
-  public internal(set) var numberOfLines: Int = 0 {
+  public var numberOfLines: Int = 0 {
     didSet {
       setNeedsDisplayForText()
     }
@@ -95,7 +103,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The line break mode of the text: `.byCharWrapping` breaks every line between characters, and the other modes set
   /// how the last line ends.
-  public internal(set) var lineBreakMode: NSLineBreakMode = .byWordWrapping {
+  public var lineBreakMode: NSLineBreakMode = .byWordWrapping {
     didSet {
       setNeedsDisplayForText()
     }
@@ -103,7 +111,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// The inset of the text from the view's edges, the width from the left and right edges and the height from the top
   /// and bottom edges.
-  public internal(set) var textContainerInset: CGSize = .zero {
+  public var textContainerInset: CGSize = .zero {
     didSet {
       setNeedsDisplayForText()
     }
@@ -167,6 +175,82 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   #if canImport(AppKit)
   override public var isFlipped: Bool { true }
   #endif
+
+  // MARK: - Sizing
+
+  #if canImport(AppKit)
+  /// Returns the size that fits the text.
+  ///
+  /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
+  /// isn't limited. A width of zero or less means no limit, and a width that the inset uses up wraps the text at 1 point.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  public func sizeThatFits(_ size: CGSize) -> CGSize {
+    labelSize(fitting: size)
+  }
+  #endif
+
+  #if canImport(UIKit)
+  /// Returns the size that fits the text.
+  ///
+  /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
+  /// isn't limited. A width of zero or less means no limit, and a width that the inset uses up wraps the text at 1 point.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  override public func sizeThatFits(_ size: CGSize) -> CGSize {
+    labelSize(fitting: size)
+  }
+  #endif
+
+  /// Returns the size that fits the text in a size.
+  ///
+  /// - Parameter size: The size to fit the text in.
+  /// - Returns: The text's size with the inset, rounded up to whole points.
+  private func labelSize(fitting size: CGSize) -> CGSize {
+    let textSize = lastText.boundingRectSize(
+      numberOfLines: numberOfLines,
+      layoutWidth: Self.layoutWidth(proposedWidth: size.width, textContainerInset: textContainerInset),
+      lineBreakMode: lineBreakMode.measuringLineBreakMode
+    )
+    return Self.labelSize(textSize: textSize, textContainerInset: textContainerInset)
+  }
+
+  /// The narrowest width that a text lays out in, which a positive width that the inset uses up gives.
+  private static let minimumLayoutWidth: CGFloat = 1
+
+  /// Returns the width that a text lays out in, in a proposed width with an inset, for a label that takes the width the
+  /// text measures.
+  ///
+  /// A proposed width of zero or less means no limit, and comes back as it is. A positive width that the inset uses up
+  /// leaves the text the narrowest width, 1 point, so that it wraps instead of measuring as one line, which a width of
+  /// zero would give.
+  ///
+  /// - Parameters:
+  ///   - proposedWidth: The width proposed for the label.
+  ///   - textContainerInset: The inset of the text from the label's edges.
+  /// - Returns: The text's layout width.
+  static func layoutWidth(proposedWidth: CGFloat, textContainerInset: CGSize) -> CGFloat {
+    guard proposedWidth > 0 else {
+      return proposedWidth
+    }
+    return max(proposedWidth - textContainerInset.width * 2, minimumLayoutWidth)
+  }
+
+  /// Returns the size of a label that shows a text of a size, with an inset.
+  ///
+  /// - Parameters:
+  ///   - textSize: The text's size.
+  ///   - textContainerInset: The inset of the text from the label's edges.
+  ///   - adjustment: An extra size to add to the text's size.
+  /// - Returns: The label's size, rounded up to whole points.
+  static func labelSize(textSize: CGSize, textContainerInset: CGSize, adjustment: CGSize = .zero) -> CGSize {
+    CGSize(
+      width: textSize.width + textContainerInset.width * 2 + adjustment.width,
+      height: textSize.height + textContainerInset.height * 2 + adjustment.height
+    ).roundedUp(scaleFactor: 1)
+  }
 
   /// Resets the view for a reuse by a text node.
   ///

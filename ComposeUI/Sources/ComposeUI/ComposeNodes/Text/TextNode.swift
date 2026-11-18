@@ -366,14 +366,16 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     // when the text can wrap, and a node that fills a length reads that length
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      size = intrinsicTextSize(for: containerSize)
+      size = intrinsicTextSize(layoutWidth: TextLabelView.layoutWidth(proposedWidth: containerSize.width, textContainerInset: textContainerInset))
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: numberOfLines == 1 ? [] : .width)
     case (true, false):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
+      let intrinsicSize = intrinsicTextSize(layoutWidth: TextLabelView.layoutWidth(proposedWidth: containerSize.width, textContainerInset: textContainerInset))
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible, dependence: numberOfLines == 1 ? .height : [.width, .height])
     case (false, true):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
+      // the node keeps the container's width, so the text measures in the width that's left as it is, and a text that the
+      // inset leaves no room for measures as one line instead of reserving the height of wrapped lines
+      let intrinsicSize = intrinsicTextSize(layoutWidth: containerSize.width - textContainerInset.width * 2)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: .width)
     case (false, false):
@@ -382,8 +384,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     }
   }
 
-  private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    let layoutWidth = containerSize.width - textContainerInset.width * 2
+  private func intrinsicTextSize(layoutWidth: CGFloat) -> CGSize {
     let rawIntrinsicSize: CGSize
     switch text {
     case .simpleText(let entry) where numberOfLines == 1:
@@ -399,11 +400,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       )
     }
     let sizeAdjustment = adjustIntrinsicTextSize?(rawIntrinsicSize) ?? .zero
-    let intrinsicSize = CGSize(
-      width: rawIntrinsicSize.width + textContainerInset.width * 2 + sizeAdjustment.width,
-      height: rawIntrinsicSize.height + textContainerInset.height * 2 + sizeAdjustment.height
-    )
-    return intrinsicSize.roundedUp(scaleFactor: 1)
+    return TextLabelView.labelSize(textSize: rawIntrinsicSize, textContainerInset: textContainerInset, adjustment: sizeAdjustment)
   }
 
   public func render(visibleBounds: CGRect, into items: inout [RenderableItem]) {
