@@ -1875,6 +1875,29 @@ class TextNodeTests: XCTestCase {
     }
   }
 
+  func test_layout_insetUsingUpTheWidth() {
+    // given: a wrapping text with 16 points of inset on each side, in a container whose width the inset uses up
+    let text = NSAttributedString(string: "Hello world", attributes: [.font: Font.systemFont(ofSize: 15)])
+    let oneLineHeight = text.boundingRectSize(numberOfLines: 1, layoutWidth: 0).roundedUp(scaleFactor: 1).height
+    let containerSize = CGSize(width: 32, height: 300)
+    let context = ComposeNodeLayoutContext(scaleFactor: 1)
+
+    // when: laying out a node that keeps the container's width
+    var flexibleWidthNode = TextNode(text).textContainerInset(horizontal: 16, vertical: 0).fixedSize(width: false, height: true)
+    flexibleWidthNode.layout(containerSize: containerSize, context: context)
+
+    // then: it has no room to draw the text, so it doesn't reserve the height of wrapped lines
+    expect(flexibleWidthNode.size.width) == 32
+    expect(flexibleWidthNode.size.height) == oneLineHeight
+
+    // when: laying out a node that takes the text's width
+    var fixedWidthNode = TextNode(text).textContainerInset(horizontal: 16, vertical: 0).fixedSize()
+    fixedWidthNode.layout(containerSize: containerSize, context: context)
+
+    // then: the text wraps as narrowly as it can, instead of measuring as one line
+    expect(fixedWidthNode.size.height) > oneLineHeight
+  }
+
   func test_layout_dependsOnTheWidthWhenTheTextCanWrap_andOnTheLengthsItFills() throws {
     let font = try unwrap(Font(name: "HelveticaNeue", size: 18))
     let context = ComposeNodeLayoutContext(scaleFactor: 1)

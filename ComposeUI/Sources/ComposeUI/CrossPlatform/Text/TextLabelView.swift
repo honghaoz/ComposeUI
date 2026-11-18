@@ -182,7 +182,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// Returns the size that fits the text.
   ///
   /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
-  /// isn't limited.
+  /// isn't limited. A width of zero or less means no limit, and a width that the inset uses up wraps the text at 1 point.
   ///
   /// - Parameter size: The size to fit the text in.
   /// - Returns: The text's size with the inset, rounded up to whole points.
@@ -195,7 +195,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// Returns the size that fits the text.
   ///
   /// A text that can wrap wraps at the given width, less the inset, a single line takes its full width, and the height
-  /// isn't limited.
+  /// isn't limited. A width of zero or less means no limit, and a width that the inset uses up wraps the text at 1 point.
   ///
   /// - Parameter size: The size to fit the text in.
   /// - Returns: The text's size with the inset, rounded up to whole points.
@@ -211,7 +211,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   private func labelSize(fitting size: CGSize) -> CGSize {
     let textSize = lastText.boundingRectSize(
       numberOfLines: numberOfLines,
-      layoutWidth: Self.layoutWidth(proposedWidth: size.width, textContainerInset: textContainerInset),
+      layoutWidth: Self.layoutWidth(proposedWidth: size.width, textContainerInset: textContainerInset, takesMeasuredWidth: true),
       lineBreakMode: lineBreakMode.measuringLineBreakMode
     )
     return Self.labelSize(textSize: textSize, textContainerInset: textContainerInset)
@@ -222,18 +222,23 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   /// Returns the width that a text lays out in, in a proposed width with an inset.
   ///
-  /// A proposed width of zero or less means no limit, and the text measures in it as it is. A positive width that the
-  /// inset uses up leaves the text the narrowest width, 1 point, instead of zero, which text measuring takes as no limit.
+  /// A proposed width of zero or less means no limit, and the text measures in it as it is. When the label takes the
+  /// width that the text measures, a positive width that the inset uses up leaves the text the narrowest width, 1 point,
+  /// so that it wraps instead of measuring as one line, which a width of zero would give. When the label keeps the
+  /// proposed width, a text it has no room to draw measures as one line, so it doesn't reserve the height of lines that
+  /// don't show.
   ///
   /// - Parameters:
   ///   - proposedWidth: The width proposed for the label.
   ///   - textContainerInset: The inset of the text from the label's edges.
+  ///   - takesMeasuredWidth: Whether the label takes the width that the text measures, instead of the proposed width.
   /// - Returns: The text's layout width.
-  static func layoutWidth(proposedWidth: CGFloat, textContainerInset: CGSize) -> CGFloat {
-    guard proposedWidth > 0 else {
-      return proposedWidth
+  static func layoutWidth(proposedWidth: CGFloat, textContainerInset: CGSize, takesMeasuredWidth: Bool) -> CGFloat {
+    let width = proposedWidth - textContainerInset.width * 2
+    guard takesMeasuredWidth, proposedWidth > 0 else {
+      return width
     }
-    return max(proposedWidth - textContainerInset.width * 2, minimumLayoutWidth)
+    return max(width, minimumLayoutWidth)
   }
 
   /// Returns the size of a label that shows a text of a size, with an inset.

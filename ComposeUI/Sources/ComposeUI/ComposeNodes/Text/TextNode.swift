@@ -366,14 +366,15 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     // when the text can wrap, and a node that fills a length reads that length
     switch (isFixedWidth, isFixedHeight) {
     case (true, true):
-      size = intrinsicTextSize(for: containerSize)
+      size = intrinsicTextSize(for: containerSize, takesMeasuredWidth: true)
       return ComposeNodeSizing(width: .fixed(size.width), height: .fixed(size.height), dependence: numberOfLines == 1 ? [] : .width)
     case (true, false):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
+      let intrinsicSize = intrinsicTextSize(for: containerSize, takesMeasuredWidth: true)
       size = CGSize(width: intrinsicSize.width, height: containerSize.height)
       return ComposeNodeSizing(width: .fixed(size.width), height: .flexible, dependence: numberOfLines == 1 ? .height : [.width, .height])
     case (false, true):
-      let intrinsicSize = intrinsicTextSize(for: containerSize)
+      // the node keeps the container's width, so a text that the inset leaves no room for doesn't reserve wrapped lines
+      let intrinsicSize = intrinsicTextSize(for: containerSize, takesMeasuredWidth: false)
       size = CGSize(width: containerSize.width, height: intrinsicSize.height)
       return ComposeNodeSizing(width: .flexible, height: .fixed(size.height), dependence: .width)
     case (false, false):
@@ -382,8 +383,12 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     }
   }
 
-  private func intrinsicTextSize(for containerSize: CGSize) -> CGSize {
-    let layoutWidth = TextLabelView.layoutWidth(proposedWidth: containerSize.width, textContainerInset: textContainerInset)
+  private func intrinsicTextSize(for containerSize: CGSize, takesMeasuredWidth: Bool) -> CGSize {
+    let layoutWidth = TextLabelView.layoutWidth(
+      proposedWidth: containerSize.width,
+      textContainerInset: textContainerInset,
+      takesMeasuredWidth: takesMeasuredWidth
+    )
     let rawIntrinsicSize: CGSize
     switch text {
     case .simpleText(let entry) where numberOfLines == 1:
