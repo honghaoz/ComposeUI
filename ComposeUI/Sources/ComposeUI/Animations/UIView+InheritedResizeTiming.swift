@@ -49,16 +49,16 @@ extension UIView {
     inheritedResize()?.timing
   }
 
-  /// The timing of the animation that UIKit resizes the view with and the key of one such animation, see
+  /// The timing of the animation that UIKit resizes the view with and the keys of its animations, see
   /// `inheritedResizeTiming()`.
   ///
-  /// - Returns: The timing and the key, or `nil`.
-  func inheritedResize() -> (timing: AnimationTiming, animationKey: String)? {
+  /// - Returns: The timing and the keys, or `nil`.
+  func inheritedResize() -> (timing: AnimationTiming, animationKeys: [String])? {
     guard UIView.inheritedAnimationDuration > 0, let keys = layer.unbridgedAnimationKeys else {
       return nil
     }
 
-    var resize: (timing: AnimationTiming, animationKey: String)?
+    var resize: (timing: AnimationTiming, animationKeys: [String])?
     for key in keys {
       guard let animation = layer.animation(forKey: key) as? CAPropertyAnimation,
             // Core Animation gives an animation that begins at the commit its begin time then, so a begin time of zero
@@ -78,7 +78,7 @@ extension UIView {
         guard let animationTiming = Self.timing(of: animation), resize == nil || resize?.timing == animationTiming else {
           return nil
         }
-        resize = (animationTiming, key)
+        resize = (animationTiming, (resize?.animationKeys ?? []) + [key])
       case Constants.propertyAnimatorPacingKeyPath:
         // a property animator can pause and scrub the animations it made after the layout, which animations of the
         // content wouldn't follow

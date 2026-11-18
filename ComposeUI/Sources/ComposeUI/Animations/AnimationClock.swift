@@ -68,12 +68,15 @@ enum AnimationClock {
     } else if commitWindows.isEmpty {
       return false
     } else {
-      // the first window still open answers, and the turn observer closes the others
-      for window in commitWindows where window.isOpen {
-        return true
+      // the first window still open answers, so the closed ones before it go, and the turn observer closes the others
+      guard let index = commitWindows.firstIndex(where: \.isOpen) else {
+        commitWindows.removeAll()
+        return false
       }
-      commitWindows.removeAll()
-      return false
+      if index > 0 {
+        commitWindows.removeFirst(index)
+      }
+      return true
     }
   }
 

@@ -1047,7 +1047,9 @@ open class ComposeView: BaseScrollView {
     // doesn't animate. the size check keeps the read out of a scroll's layouts.
     if bounds.size != lastBoundsSize, followedResizeTiming == nil, let resize = inheritedResize() {
       // UIKit's animation begins at its commit, which can come turns after the layout, as a rotation's does
-      AnimationClock.waitForCommit(of: resize.animationKey, on: layer)
+      for animationKey in resize.animationKeys {
+        AnimationClock.waitForCommit(of: animationKey, on: layer)
+      }
       followedResizeTiming = resize.timing
       renderBoundsChangeIfNeeded()
       followedResizeTiming = nil

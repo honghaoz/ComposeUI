@@ -115,8 +115,9 @@ class AnimationClockTests: XCTestCase {
     // when: the first animation goes
     first.removeAllAnimations()
 
-    // then: the second window keeps the animations added beginning at the commit
+    // then: the second window keeps the animations added beginning at the commit, and the first window closes
     expect(AnimationClock.addsAtCommit) == true
+    expect(AnimationClock.commitWindowCount) == 1
 
     // when: the second animation goes too
     second.removeAllAnimations()

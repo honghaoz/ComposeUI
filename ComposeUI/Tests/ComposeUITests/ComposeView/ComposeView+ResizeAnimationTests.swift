@@ -124,6 +124,38 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     otherLayer.removeAllAnimations()
   }
 
+  func test_animatedLayout_combinedResize_keepsTheWindowOpenWhileEitherAnimationWaits() throws {
+    // given: a view showing a row
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+    }
+    view.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    view.refresh(animated: false)
+
+    // when: resizing the view in two blocks of the same timing, the second with a layout, then removing one of UIKit's
+    // two animations
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 250
+    }
+    UIView.animate(withDuration: 0.5) {
+      view.frame.size.width = 300
+      view.layoutIfNeeded()
+    }
+    let sizeKeys = (view.layer.animationKeys() ?? []).filter { (view.layer.animation(forKey: $0) as? CABasicAnimation)?.keyPath == "bounds.size" }
+    expect(sizeKeys.count) == 2
+    try view.layer.removeAnimation(forKey: unwrap(sizeKeys.last))
+
+    // then: the window stays open for the other animation
+    expect(AnimationClock.addsAtCommit) == true
+
+    // when: the second animation goes too
+    view.layer.removeAllAnimations()
+
+    // then: the window closes
+    expect(AnimationClock.addsAtCommit) == false
+  }
+
   func test_animatedLayout_nestedViewFollowsTheParentsResize_atTheCommit() throws {
     // given: a nested view filling its parent, showing a row
     var row: CALayer?

@@ -186,16 +186,20 @@ class UIView_InheritedResizeTimingTests: XCTestCase {
 
     // when: resizing it twice in one transaction in blocks with the same timing
     var timing: AnimationTiming?
+    var keys: [String]?
     UIView.animate(withDuration: 0.5) {
       view.frame.size.width = 200
     }
     UIView.animate(withDuration: 0.5) {
       view.frame.size.width = 300
       timing = view.inheritedResizeTiming()
+      keys = view.inheritedResize()?.animationKeys
     }
 
-    // then: the timing is the blocks' timing
+    // then: the timing is the blocks' timing, with the keys of both of UIKit's animations
     expect(timing) == AnimationTiming(timing: .timingFunction(0.5, CAMediaTimingFunction(name: .easeInEaseOut)))
+    expect(keys?.count) == 2
+    expect(Set(keys ?? []).count) == 2
 
     // when: resizing it again in a block of the same duration with another curve
     UIView.animate(withDuration: 0.5, delay: 0, options: .curveLinear) {

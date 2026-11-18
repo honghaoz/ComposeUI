@@ -65,6 +65,35 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     try expectFollowsResize(row: row, of: view, from: 200, to: { 400 })
   }
 
+  func test_animatedLayout_commitClosesTheCommitWindow() throws {
+    // given: a view in a window
+    let window = try makeHostWindow()
+    let view = ComposeView {
+      ColorNode(.red)
+        .frame(width: .flexible, height: 50)
+    }
+    window.contentView.addSubview(view)
+    view.frame = CGRect(x: 0, y: 100, width: 200, height: 100)
+    view.layoutIfNeeded()
+
+    // when: animating the view wider with a layout in the animation block
+    UIView.animate(withDuration: 1) {
+      view.frame.size.width = 400
+      view.layoutIfNeeded()
+    }
+
+    // then: the animations added before the commit begin at the commit
+    expect(AnimationClock.addsAtCommit) == true
+
+    // when: UIKit's resize animation is committed, while it's still in flight
+    let resize = try committedSizeAnimation(of: view.layer)
+    RunLoop.main.run(until: Date())
+
+    // then: the window is closed, so the animations added begin at the clock's time
+    expect(view.layer.animation(forKey: "bounds.size")?.beginTime) == resize.beginTime
+    expect(AnimationClock.addsAtCommit) == false
+  }
+
   #if os(iOS)
 
   func test_rotation_contentAnimatesWithView() throws {

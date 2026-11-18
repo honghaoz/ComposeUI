@@ -192,47 +192,48 @@ class CALayer_FrameAnimationTests: XCTestCase {
   }
 
   func test_retargetFrame_inACommitWindow_glidesBeginAtTheCommit() throws {
-    // given: a layer resizing from 100, and a commit window open for an animation that waits for the commit
+    // given: a commit window open for an animation that waits for the commit
     let host = CALayer()
     let waiting = CABasicAnimation(keyPath: "bounds.size")
     waiting.duration = 1
     host.add(waiting, forKey: "resize")
-    let layer = CALayer()
-    layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
-    AnimationClock.sharingTime(at: 100) {
-      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
-    }
     AnimationClock.waitForCommit(of: "resize", on: host)
 
-    // when: the frame retargets at 100.1, within the window
-    AnimationClock.sharingTime(at: 100.1) {
-      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+    // the animations after a retarget at the time of a layer resizing from a tenth of a second before
+    func animationsAfterRetargeting(at time: TimeInterval) -> [CABasicAnimation] {
+      let layer = CALayer()
+      layer.frame = CGRect(x: 0, y: 0, width: 100, height: 50)
+      AnimationClock.sharingTime(at: time - 0.1) {
+        layer.animateFrame(to: CGRect(x: 0, y: 0, width: 200, height: 50), timing: .linear(duration: 1))
+      }
+      AnimationClock.sharingTime(at: time) {
+        layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
+      }
+      return (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) as? CABasicAnimation }
     }
 
-    // then: the glides begin at the commit
-    func glides() -> [CAAnimation] {
-      (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }.filter { $0.beginTime != 100 }
+    // when: a frame retargets within the window
+    let windowAnimations = animationsAfterRetargeting(at: 100)
+
+    // then: it has a glide of the position and of the size, which begin at the commit, and every other animation is
+    // the resize's
+    for keyPath in ["position", "bounds.size"] {
+      expect(windowAnimations.contains { $0.keyPath == keyPath && $0.beginTime == 0 }, keyPath) == true
     }
-    expect(glides().isEmpty) == false
-    for glide in glides() {
-      expect(glide.beginTime) == 0
+    for animation in windowAnimations {
+      expect([0, 99.9].contains(animation.beginTime)) == true
     }
 
-    // when: the window closes, then the frame retargets again
+    // when: the window closes, then a frame retargets
     host.removeAllAnimations()
-    layer.removeAllAnimations()
-    AnimationClock.sharingTime(at: 200) {
-      layer.animateFrame(to: CGRect(x: 0, y: 0, width: 100, height: 50), timing: .linear(duration: 1))
-    }
-    AnimationClock.sharingTime(at: 200.1) {
-      layer.retargetFrame(to: CGRect(x: 0, y: 0, width: 150, height: 50))
-    }
+    let clockAnimations = animationsAfterRetargeting(at: 200)
 
-    // then: the glides begin at the clock's time
-    let clockGlides = (layer.animationKeys() ?? []).compactMap { layer.animation(forKey: $0) }.filter { $0.beginTime != 200 }
-    expect(clockGlides.isEmpty) == false
-    for glide in clockGlides {
-      expect(glide.beginTime) == 200.1
+    // then: its glides begin at the clock's time
+    for keyPath in ["position", "bounds.size"] {
+      expect(clockAnimations.contains { $0.keyPath == keyPath && $0.beginTime == 200 }, keyPath) == true
+    }
+    for animation in clockAnimations {
+      expect([200, 199.9].contains(animation.beginTime)) == true
     }
   }
 
