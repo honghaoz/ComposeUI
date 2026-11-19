@@ -5,7 +5,23 @@
 ![swift](https://img.shields.io/badge/swift-6.0-F05138.svg)
 ![platforms](https://img.shields.io/badge/platforms-macOS%2010.15%20%7C%20iOS%2013.0%20%7C%20tvOS%2013.0%20%7C%20visionOS%201.0-007fea.svg)
 
-**ComposéUI** is a Swift framework for building UI using AppKit and UIKit with declarative syntax.
+**ComposéUI** is a fast, declarative UI framework for iOS, macOS, tvOS and visionOS, built directly on UIKit, AppKit and Core Animation.
+
+Describe your interface as a tree of lightweight nodes. ComposéUI lays them out with simple, predictable rules, renders only what's on screen, and turns the changes into real views and layers, animating them as it goes. Because everything ends up as plain views and layers, your existing UIKit and AppKit views, Core Animation layers and SwiftUI views fit right in.
+
+## Highlights
+
+- **Fast.** Only the nodes in the visible area are rendered, and views and layers are reused from a pool. A scroll step through 10,000 rows takes about a tenth of a millisecond on a Mac. See [Performance](#performance).
+- **Predictable layout.** Each node is sized from the space its parent proposes, using plain stacks, frames, padding and spacers, with no constraint solving. The same content at the same size always gets the same frames.
+- **Works with what you have.** Put any `UIView` or `NSView` in with `ViewNode`, any `CALayer` with `LayerNode`, and SwiftUI views with `SwiftUIViewNode`. `ComposeView` is itself a regular view, so it drops into an existing app one screen or one cell at a time.
+- **One API on four platforms.** The same code runs on iOS, macOS, tvOS and visionOS.
+- **Animations built in.** Spring and timing-curve animations backed by Core Animation, insert and remove transitions, in-flight animations that retarget smoothly, and up to 120 Hz on ProMotion displays.
+- **Adaptive.** Themed colors follow light and dark mode, and views update when the text size or Bold Text setting changes.
+
+## Requirements
+
+- macOS 10.15, iOS 13, tvOS 13 or visionOS 1 or later
+- Swift 6.0 or later (Xcode 16 or later)
 
 ## Installation
 
@@ -29,21 +45,19 @@ targets: [
 ]
 ```
 
+ComposéUI is pre-1.0, so a release can include breaking changes. Each one is listed in the [changelog](https://github.com/honghaoz/ComposeUI/blob/master/CHANGELOG.md).
+
 ### Xcode
 
-1. Open your project in Xcode.
-2. Select the project in the sidebar.
-3. Select the project under the **PROJECT** section.
-4. Go to the **Package Dependencies** tab.
-5. Click the **+** button enter the package URL: `https://github.com/honghaoz/ComposeUI`.
-6. Click **Add Package**.
-7. Select the target you want to add `ComposeUI` to under the **Add to Target** section.
-8. Click **Add Package**.
-9. Add `import ComposeUI` in your file.
+1. Choose **File > Add Package Dependencies…**
+2. Enter `https://github.com/honghaoz/ComposeUI`.
+3. Add the **ComposeUI** library to your target, then `import ComposeUI`.
 
 ## Usage
 
 ### Quick start
+
+`ComposeView` is the view that hosts ComposéUI content. It's a scroll view, a `UIScrollView` on iOS, tvOS and visionOS and an `NSScrollView` on macOS, so it scrolls when its content overflows and goes anywhere a regular view can.
 
 There are three ways to give a `ComposeView` its content. When the state changes, call `refresh()`, or `setNeedsRefresh()` to merge the changes into one refresh at the next layout.
 
@@ -437,7 +451,7 @@ HStack(spacing: 32) {
 
 ### Scrolling and performance
 
-A `ComposeView` scrolls when its content overflows and renders only the visible nodes, so a thousand rows scroll smoothly.
+A `ComposeView` scrolls when its content overflows and renders only the visible nodes, so a thousand rows scroll smoothly. See [Performance](#performance).
 
 <table align="left">
 <tr>
@@ -500,6 +514,32 @@ VStack {
 </table>
 
 <p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360" alt="A music library of a thousand songs that flings from song 1 to song 151 and glides back to the top"><br clear="left"></p>
+
+## How it works
+
+When a `ComposeView` refreshes, which it does when it first appears and each time you call `refresh()`, it builds your content into a tree of lightweight nodes (`ComposeNode`), then turns it into views and layers in two steps:
+
+1. **Layout.** Each node is sized from the space its parent proposes and reports its size back, which gives every node a frame.
+2. **Render.** The view asks the tree for only the views and layers in its visible bounds, and matches them by id to the ones already on screen. New views and layers come in, and removed ones go out, with their transitions if they have any. Existing ones are updated, and animate when an animation is set. Views and layers are reused from a pool.
+
+Scrolling reuses the layout: it brings in the newly visible views and layers, and updates the ones already on screen for the new bounds.
+
+## Performance
+
+Measured with the repository's benchmarks, on rows of an icon and two labels in a 390 × 844 view, on a MacBook Pro with M5 Max, macOS 27.0.1 and Xcode 27.2:
+
+| Benchmark | Time | Allocations |
+| --- | --- | --- |
+| One scroll step through 10,000 rows, drawn in a window | 0.11 ms | 228 |
+| Refresh of 200 rows: rebuild, lay out and render | 0.13 ms | 1,183, about 6 per row |
+| Layout of 200 rows | 0.03 ms | 1 |
+
+A frame at 120 Hz has 8.3 ms, so a scroll step uses about 1.3% of it. Run the benchmarks yourself with `make -C ComposeUI benchmark FILTER=RenderPerformanceTests`.
+
+## Documentation
+
+- [Changelog](https://github.com/honghaoz/ComposeUI/blob/master/CHANGELOG.md)
+- The playground app in [`playgrounds/ComposeUIPlayground.xcodeproj`](https://github.com/honghaoz/ComposeUI/tree/master/playgrounds), with demos for macOS, iOS, tvOS and visionOS
 
 ## License
 
