@@ -124,7 +124,7 @@ HStack(spacing: 12) {
 
 </td>
 <td width="360">
-<img src="MEDIA:02-layout.png" width="360">
+<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360">
 </td>
 </tr>
 </table>
@@ -179,7 +179,7 @@ HStack(spacing: 24) {
 
 </td>
 <td width="360">
-<img src="MEDIA:03-styling.png" width="360">
+<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360">
 </td>
 </tr>
 </table>
@@ -209,7 +209,7 @@ VStack(alignment: .left, spacing: 8) {
 
 </td>
 <td width="360">
-<img src="MEDIA:04-text.png" width="360">
+<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360">
 </td>
 </tr>
 </table>
@@ -245,7 +245,7 @@ func toggle() {
 
 </td>
 <td width="360">
-<img src="MEDIA:05-animations.apng.png" width="360">
+<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360">
 </td>
 </tr>
 </table>
@@ -279,7 +279,7 @@ override var content: ComposeContent {
 
 </td>
 <td width="360">
-<img src="MEDIA:06-transitions.apng.png" width="360">
+<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360">
 </td>
 </tr>
 </table>
@@ -318,7 +318,7 @@ override var content: ComposeContent {
 
 </td>
 <td width="360">
-<img src="MEDIA:07-interaction.apng.png" width="360">
+<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360">
 </td>
 </tr>
 </table>
@@ -361,7 +361,7 @@ HStack {
 
 </td>
 <td width="360">
-<img src="MEDIA:08-dark-mode.apng.png" width="360">
+<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360">
 </td>
 </tr>
 </table>
@@ -401,7 +401,7 @@ HStack(spacing: 32) {
 
 </td>
 <td width="360">
-<img src="MEDIA:09-interop.png" width="360">
+<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360">
 </td>
 </tr>
 </table>
@@ -453,7 +453,7 @@ VStack {
 
 </td>
 <td width="360">
-<img src="MEDIA:10-scrolling.apng.png" width="360">
+<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360">
 </td>
 </tr>
 </table>
