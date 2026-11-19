@@ -26,7 +26,8 @@ fi
 
 "$app" -readmeDemo "$demo" -readmeTheme light -NSQuitAlwaysKeepsWindows NO ${=APP_ARGS:-} >/dev/null 2>&1 &
 app_pid=$!
-trap 'kill $app_pid 2>/dev/null || true' EXIT
+record_pid=
+trap 'kill $app_pid $record_pid 2>/dev/null || true' EXIT
 sleep 2
 
 "$tools/record-screen" 120 160 360 "$height" "$seconds" "$out" "$cursor" &

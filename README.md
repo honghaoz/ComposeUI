@@ -132,7 +132,7 @@ HStack(spacing: 12) {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360">
+<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360" alt="A meeting row with a blue DR avatar, Design Review, Today, 3:00 PM and a Join button">
 </td>
 </tr>
 </table>
@@ -188,7 +188,7 @@ HStack(spacing: 24) {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360">
+<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360" alt="Three white rounded squares: one with a blue border, one with a drop shadow and one with an inner shadow">
 </td>
 </tr>
 </table>
@@ -221,7 +221,7 @@ VStack(alignment: .left, spacing: 8) {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360">
+<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360" alt="The heading Ready for liftoff, a gray label and a text view with the word selectable selected">
 </td>
 </tr>
 </table>
@@ -259,7 +259,7 @@ func toggle() {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360">
+<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360" alt="A blue rounded square that springs into a wide orange pill and back when toggled">
 </td>
 </tr>
 </table>
@@ -296,7 +296,7 @@ override var content: ComposeContent {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360">
+<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360" alt="Blue, green and orange squares that slide, fade and scale in and out as they are shown and hidden">
 </td>
 </tr>
 </table>
@@ -343,7 +343,7 @@ override var content: ComposeContent {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360">
+<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360" alt="A Join button that lightens on hover, dims when pressed and turns into a gray Joined button when clicked">
 </td>
 </tr>
 </table>
@@ -392,7 +392,7 @@ HStack {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360">
+<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360" alt="A Good evening card that fades between the light and dark appearances">
 </td>
 </tr>
 </table>
@@ -437,7 +437,7 @@ HStack(spacing: 32) {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360">
+<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360" alt="A native switch turned on, an orange circle drawn by a shape layer and a SwiftUI progress bar">
 </td>
 </tr>
 </table>
@@ -504,7 +504,7 @@ VStack {
 
 </td>
 <td width="391">
-<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360">
+<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360" alt="A music library of a thousand songs that flings from song 1 to song 151 and glides back to the top">
 </td>
 </tr>
 </table>

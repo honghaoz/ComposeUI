@@ -61,11 +61,13 @@ if ffmpeg.wait() != 0:
     sys.exit("ffmpeg failed")
 
 # the sRGB chunk goes right after IHDR, so that browsers treat the colors as sRGB, which record-screen captures in
-data = open(out, "rb").read()
+with open(out, "rb") as file:
+    data = file.read()
 if b"sRGB" not in data[:200]:
     after_header = 8 + 12 + 13
     chunk = struct.pack(">I", 1) + b"sRGB" + b"\x00" + struct.pack(">I", zlib.crc32(b"sRGB\x00") & 0xffffffff)
-    open(out, "wb").write(data[:after_header] + chunk + data[after_header:])
+    with open(out, "wb") as file:
+        file.write(data[:after_header] + chunk + data[after_header:])
 
 wrap = frame_at(start + count / fps)
 first, after = frame(indexes[0]), frame(wrap)

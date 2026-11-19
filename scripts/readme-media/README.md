@@ -130,8 +130,8 @@ Start the loop 0.35 s before the cursor first moves, and end it after the button
 
 ### Scrolling
 
-A real-time recording of the scrolling demo misses frames, so the demo has a frame-hold mode that shows each frame of a
-50 fps scroll for 4 display frames, and the recording is sped back up:
+A real-time recording of the scrolling demo misses frames, so the demo has a frame-hold mode that holds each frame of a
+50 fps scroll for 4/60 s (4 display frames at 60 Hz, 8 at 120 Hz), and the recording is sped back up:
 
 ```bash
 APP_ARGS="-readmeFrameHold 4 -readmeFrameRate 50" \
