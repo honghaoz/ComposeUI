@@ -19,7 +19,8 @@ The parts are:
 
 The script rewrites only the code blocks and leaves the rest of the README unchanged. With --check, it writes nothing,
 lists the snippets that differ from their demos and exits with status 1 if any do. It also warns about lines longer than
-49 characters, which widen a table's code column past the 434 pixels of the other tables.
+49 characters, which widen a table's code column past the 505 pixels of the other tables (see the README in this
+folder for how the widths are worked out).
 """
 import os
 import re

@@ -19,7 +19,25 @@ python3 scripts/readme-media/sync-readme-snippets.py
 A comment before each snippet in README.md, which GitHub doesn't render, names the demo file and the part it shows, such
 as `<!-- snippet: ReadmeDemo05Animations.swift class -->`. `--check` lists the snippets that differ from their demos
 without writing, and exits with status 1 if any do. The script also warns about lines longer than 49 characters, which
-widen a table's code column past the 434 pixels of the other tables, so the columns no longer line up.
+widen a table's code column past the 505 pixels of the other tables, so the columns no longer line up.
+
+## Table widths
+
+Each feature section is a table with the code in a `<td width="505">` cell and the media in a `<td width="333">` cell,
+with `<img width="305">`, so that every table has the same columns on github.com:
+
+- GitHub renders a table as `max-content`, so each table sizes its columns to its own content. A `td` width works as a
+  minimum, and GitHub's sanitizer keeps it.
+- GitHub sizes the cells as border-box, so a cell's width includes its 13 px side padding and its border.
+- GitHub puts a 44 px copy button beside each code block, which adds to the code cell's minimum width. A code cell
+  needs about `8.19 x <longest line in characters> + 103` pixels: 13.6 px SF Mono, the code block's 16 px side
+  padding, the copy button and the cell's padding. 49 characters need 505 pixels.
+- The README on the repository's home page is 838 pixels wide at window widths from 1280 to 1920, the narrowest of
+  GitHub's README views, so a table can be at most 838 pixels: 505 for the code leaves 333 for the media, whose image
+  then shows 305 pixels wide (the files are 720 pixels wide, so they stay sharp).
+
+To show longer lines or larger media, change the cell widths in all the tables and the line limit in
+`sync-readme-snippets.py` together, and check the tables on github.com.
 
 ## Requirements
 

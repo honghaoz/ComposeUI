@@ -102,7 +102,7 @@ Arrange nodes with `VStack`, `HStack` and `ZStack`, and size them with `Spacer`,
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo02Layout.swift content -->
 ```swift
@@ -130,8 +130,8 @@ HStack(spacing: 12) {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="305">
 </td>
 </tr>
 </table>
@@ -142,7 +142,7 @@ Round the corners, add a border, or draw a drop shadow or an inner shadow along 
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo03Styling.swift content -->
 ```swift
@@ -183,8 +183,8 @@ HStack(spacing: 24) {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="305">
 </td>
 </tr>
 </table>
@@ -195,7 +195,7 @@ HStack(spacing: 24) {
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo04Text.swift content -->
 ```swift
@@ -216,8 +216,8 @@ VStack(alignment: .left, spacing: 8) {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="305">
 </td>
 </tr>
 </table>
@@ -228,7 +228,7 @@ Change state, call `refresh()`, and ComposéUI animates the difference.
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo05Animations.swift class -->
 ```swift
@@ -252,8 +252,8 @@ func toggle() {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="305">
 </td>
 </tr>
 </table>
@@ -264,7 +264,7 @@ Give a node a `transition`, and it slides, fades or scales in and out as the con
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo06Transitions.swift class -->
 ```swift
@@ -289,8 +289,8 @@ override var content: ComposeContent {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="305">
 </td>
 </tr>
 </table>
@@ -301,7 +301,7 @@ override var content: ComposeContent {
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo07Interaction.swift class -->
 ```swift
@@ -328,8 +328,8 @@ override var content: ComposeContent {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="305">
 </td>
 </tr>
 </table>
@@ -340,7 +340,7 @@ A `ThemedColor` resolves to its light or dark value. When the appearance changes
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo08DarkMode.swift content -->
 ```swift
@@ -377,8 +377,8 @@ HStack {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="305">
 </td>
 </tr>
 </table>
@@ -389,7 +389,7 @@ Mix in native views, Core Animation layers and SwiftUI views, here an `NSSwitch`
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo09Interop.swift content -->
 ```swift
@@ -419,8 +419,8 @@ HStack(spacing: 32) {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="305">
 </td>
 </tr>
 </table>
@@ -431,7 +431,7 @@ A `ComposeView` scrolls when its content overflows and renders only the visible 
 
 <table>
 <tr>
-<td width="434">
+<td width="505">
 
 <!-- snippet: ReadmeDemo10Scrolling.swift content -->
 ```swift
@@ -479,8 +479,8 @@ VStack {
 ```
 
 </td>
-<td width="360">
-<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360">
+<td width="333">
+<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="305">
 </td>
 </tr>
 </table>
