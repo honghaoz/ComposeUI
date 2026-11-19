@@ -45,6 +45,9 @@ To show longer lines or larger media, change the cell widths in all the tables a
 - Screen Recording permission for the app that runs the scripts, such as Terminal.
 - Accessibility permission for the same app, to record the interaction demo: `drive-mouse` moves the cursor and clicks
   with posted events, which macOS drops without it.
+- A 2x (Retina) main display: `record-screen` captures the window at twice its size in points, and `still.sh` uses
+  `screencapture -R`, which saves at the display's scale, so on a 1x display the stills come out half size and the
+  recordings are upscaled.
 - The main display's top-left area free, since the demo window opens at (120, 160) points from its top-left corner.
 
 ## Steps

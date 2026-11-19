@@ -116,6 +116,7 @@ HStack(spacing: 12) {
 
   VStack(alignment: .left, spacing: 4) {
     Label("Design Review")
+      .textColor(.black)
     Label("Today, 3:00 PM")
       .textColor(.systemGray)
   }
