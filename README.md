@@ -11,7 +11,7 @@ Describe your interface as a tree of lightweight nodes. ComposéUI lays them out
 
 ## Highlights
 
-- **Fast.** Only the nodes in the visible area are rendered, views and layers are reused from a pool, and labels are drawn ahead of time off the main thread. A scroll step through 10,000 rows takes about a tenth of a millisecond on a Mac. See [Performance](#performance).
+- **Fast.** Only the nodes in the visible area are rendered, and views and layers are reused from a pool. A scroll step through 10,000 rows takes about a tenth of a millisecond on a Mac. See [Performance](#performance).
 - **Predictable layout.** Each node is sized from the space its parent proposes, using plain stacks, frames, padding and spacers, with no constraint solving. The same content at the same size always gets the same frames.
 - **Works with what you have.** Put any `UIView` or `NSView` in with `ViewNode`, any `CALayer` with `LayerNode`, and SwiftUI views with `SwiftUIViewNode`. `ComposeView` is itself a regular view, so it drops into an existing app one screen or one cell at a time.
 - **One API on four platforms.** The same code runs on iOS, macOS, tvOS and visionOS.
@@ -522,7 +522,7 @@ When a `ComposeView` refreshes, which it does when it first appears and each tim
 1. **Layout.** Each node is sized from the space its parent proposes and reports its size back, which gives every node a frame.
 2. **Render.** The view asks the tree for only the views and layers in its visible bounds, and matches them by id to the ones already on screen. New views and layers come in, and removed ones go out, with their transitions if they have any. Existing ones are updated, and animate when an animation is set. Views and layers are reused from a pool.
 
-Scrolling skips layout and only renders the newly visible views and layers.
+Scrolling reuses the layout: it brings in the newly visible views and layers, and updates the ones already on screen for the new bounds.
 
 ## Performance
 
