@@ -19,8 +19,8 @@ python3 scripts/readme-media/sync-readme-snippets.py
 A comment before each snippet in README.md, which GitHub doesn't render, names the demo file and the part it shows, such
 as `<!-- snippet: ReadmeDemo05Animations.swift class -->`. `--check` lists the snippets that differ from their demos
 without writing, and exits with status 1 if any do. The script also warns about lines longer than 42 characters, which
-widen a section's code table past the 447 pixels of the others and leave less room for the image. From 44 characters,
-the image no longer fits beside the code even on the 838 pixel README.
+widen a section's code table past the 447 pixels of the others and leave less room for the image. On the 838 pixel
+README, the image loses its gap from 44 characters and no longer fits beside the code from 46.
 
 ## Layout
 
