@@ -115,7 +115,9 @@ Task {
     // the frames are converted to sRGB, so that the colors match the app's colors instead of the display's
     configuration.colorSpaceName = CGColorSpace.sRGB
     configuration.showsCursor = showsCursor
-    configuration.showMouseClicks = showsCursor
+    if #available(macOS 15.0, *) {
+      configuration.showMouseClicks = showsCursor
+    }
     configuration.queueDepth = 8
 
     let stream = SCStream(filter: SCContentFilter(display: display, excludingWindows: []), configuration: configuration, delegate: nil)

@@ -30,7 +30,7 @@
 
 import ComposeUI
 
-/// The README "Dark mode" demo: themed colors resolve for the current appearance and animate when it changes.
+/// The README "Dark mode" demo: themed colors resolve for the current appearance, and the backgrounds animate when it changes.
 final class DarkModeDemoView: ComposeView {
 
   @ComposeContentBuilder

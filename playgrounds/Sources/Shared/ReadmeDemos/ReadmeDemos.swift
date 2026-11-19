@@ -191,16 +191,16 @@ enum ReadmeDemos {
     // a display link sets the offset once per frame, for the time that the frame shows, so that each frame scrolls by
     // its own step, while a timer drifts against the display and leaves some frames without a new offset
     if #available(macOS 14.0, *) {
-      // `-readmeFrameHold n` shows each frame of the scroll for n display frames, so that a capture gets every frame of
-      // it even when the window misses a display frame, and the capture is sped up afterwards. `-readmeFrameRate` sets
-      // the frame rate of the scroll's frames, 60 by default
+      // `-readmeFrameHold n` shows each frame of the scroll for n / 60 s, n display frames at 60 Hz, so that a capture
+      // gets every frame of it even when the window misses a display frame, and the capture is sped up afterwards.
+      // `-readmeFrameRate` sets the frame rate of the scroll's frames, 60 by default. the frame to show is taken from
+      // the display link's time instead of counting its callbacks, so that a 120 Hz display holds each frame as long
       let hold = UserDefaults.standard.integer(forKey: "readmeFrameHold")
       let frameRate = UserDefaults.standard.double(forKey: "readmeFrameRate")
-      var displayFrame = 0
       let target = DisplayLinkTarget { now in
         if hold > 0 {
-          update(start + Double(displayFrame / hold) / (frameRate > 0 ? frameRate : 60))
-          displayFrame += 1
+          let frame = ((now - start) * 60 / Double(hold)).rounded(.down)
+          update(start + frame / (frameRate > 0 ? frameRate : 60))
         } else {
           update(now)
         }

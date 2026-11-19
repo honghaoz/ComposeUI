@@ -25,6 +25,8 @@ widen a table's code column past the 434 pixels of the other tables, so the colu
 
 - macOS with Xcode, and `ffmpeg` (`brew install ffmpeg`).
 - Screen Recording permission for the app that runs the scripts, such as Terminal.
+- Accessibility permission for the same app, to record the interaction demo: `drive-mouse` moves the cursor and clicks
+  with posted events, which macOS drops without it.
 - The main display's top-left area free, since the demo window opens at (120, 160) points from its top-left corner.
 
 ## Steps

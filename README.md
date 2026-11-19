@@ -336,7 +336,7 @@ override var content: ComposeContent {
 
 ### Dark mode
 
-A `ThemedColor` resolves to its light or dark value. When the appearance changes, the view refreshes, and the nodes with an `animation` animate to the new colors.
+A `ThemedColor` resolves to its light or dark value. When the appearance changes, the view refreshes, and the backgrounds with an `animation` animate to their new colors, while text colors switch at once.
 
 <table>
 <tr>
