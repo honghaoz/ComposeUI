@@ -24,18 +24,20 @@ widen a section's code table past 447 pixels, so the image no longer fits beside
 ## Layout
 
 Each feature section has the code first, in a one-cell `<table align="left">` with `<td width="447">`, and then the
-media in a paragraph, `<p>&nbsp;&nbsp;&nbsp;<wbr><img width="360"><br clear="left"></p>`. On a wide README, the image
-sits to the right of the code. When the README is too narrow for both, such as on a phone or in a small window, the
-image moves below the code, so both keep their full size and stay left-aligned. A two-column table can't do this: its
-columns never wrap, and when the table is narrow, the image column shrinks to nothing because the code column can't
-shrink below its longest line.
+media in a paragraph, `<p>&nbsp;&nbsp;&nbsp;<img width="360"><br clear="left"></p>`. On a wide README, the image sits
+to the right of the code. When the README is too narrow for both, such as on a phone or in a small window, the image
+moves below the code, so both keep their full size and stay left-aligned. A two-column table can't do this: its columns
+never wrap, and when the table is narrow, the image column shrinks to nothing because the code column can't shrink
+below its longest line.
 
 - `align="left"` floats the code table, and the paragraph's line wraps beside it when the image fits and moves below it
   when it doesn't. The table needs the `td` width: GitHub renders a table as `max-content`, and a `td` width works as a
   minimum that GitHub's sanitizer keeps, so the table keeps its width. A plain code block can't float.
-- The three non-breaking spaces put a 14 pixel gap between the code and the image. `<wbr>` lets the line break after
-  them, so on a phone the image starts at the left edge instead of 14 pixels in. `hspace` would add the gap on both
-  sides and push the image past the right edge of a phone screen.
+- The three non-breaking spaces put a 14 pixel gap between the code and the image. The line can break between them and
+  the image, so on a phone the image starts at the left edge. In READMEs about 808 to 822 pixels wide, the image fits
+  beside the code but the spaces don't, so it wraps to the next line beside the code, with no gap. `hspace` would add
+  the gap on both sides and push the image past the right edge of a phone screen. GitHub's sanitizer removes `<wbr>`
+  and `<nobr>`, and putting the image in its own table doubles the border between the two boxes.
 - `<br clear="left">` starts the next section below the code, which is usually taller than the image.
 - GitHub sizes the cells as border-box, so a cell's width includes its 13 px side padding and its border.
 - GitHub puts a 44 px copy button beside each code block, which adds to the code cell's minimum width. A code cell
