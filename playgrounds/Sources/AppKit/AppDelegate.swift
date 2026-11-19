@@ -44,6 +44,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   private var frameRateLabWindow: FrameRateLabWindow?
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
+    // show only the requested README demo, for capturing the README media
+    if let window = ReadmeDemos.openIfRequested() {
+      self.window = window
+      return
+    }
 
     // create the window
     let window = NSWindow(
