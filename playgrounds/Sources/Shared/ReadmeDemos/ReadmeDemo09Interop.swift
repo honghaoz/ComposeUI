@@ -48,15 +48,16 @@ final class InteropDemoView: ComposeView {
         return toggle
       })
       .frame(width: 38, height: 22)
+
       LayerNode<CAShapeLayer>(update: { dot, _ in
         dot.path = CGPath(
           ellipseIn: dot.bounds,
           transform: nil
         )
-        dot.fillColor =
-          NSColor.systemOrange.cgColor
+        dot.fillColor = NSColor.systemOrange.cgColor
       })
       .frame(40)
+
       SwiftUIViewNode {
         ProgressView(value: 0.6)
       }

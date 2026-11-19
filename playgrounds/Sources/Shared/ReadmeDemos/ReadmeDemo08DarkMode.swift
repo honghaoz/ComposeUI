@@ -39,19 +39,24 @@ final class DarkModeDemoView: ComposeView {
       light: .white,
       dark: Color(white: 0.15, alpha: 1)
     )
+
     let title = ThemedColor(
       light: .black,
       dark: .white
     )
+
     HStack {
       VStack(alignment: .left, spacing: 6) {
         Label("Good evening")
           .font(.boldSystemFont(ofSize: 20))
           .textColor(title)
+
         Label("3 tasks due today")
           .textColor(.systemGray)
       }
+
       Spacer()
+
       ColorNode(.systemGreen)
         .frame(12).cornerRadius(6)
     }

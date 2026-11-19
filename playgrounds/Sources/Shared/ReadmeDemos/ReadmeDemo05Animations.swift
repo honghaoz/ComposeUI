@@ -37,8 +37,7 @@ final class AnimationDemoView: ComposeView {
 
   @ComposeContentBuilder
   override var content: ComposeContent {
-    ColorNode(isOn ? .systemOrange
-      : .systemBlue)
+    ColorNode(isOn ? .systemOrange : .systemBlue)
       .frame(
         width: isOn ? 240 : 80,
         height: 80

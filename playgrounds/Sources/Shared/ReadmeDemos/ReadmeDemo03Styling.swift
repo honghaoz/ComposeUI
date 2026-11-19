@@ -48,14 +48,12 @@ final class StylingDemoView: ComposeView {
         transform: nil
       )
     }
+
     HStack(spacing: 24) {
-      ColorNode(.white)
-        .frame(80)
-        .cornerRadius(16)
+      ColorNode(.white).frame(80).cornerRadius(16)
         .border(color: .systemBlue, width: 2)
-      ColorNode(.white)
-        .frame(80)
-        .cornerRadius(16)
+
+      ColorNode(.white).frame(80).cornerRadius(16)
         .dropShadow(
           color: .black,
           opacity: 0.2,
@@ -63,9 +61,8 @@ final class StylingDemoView: ComposeView {
           offset: .zero,
           path: path
         )
-      ColorNode(.white)
-        .frame(80)
-        .cornerRadius(16)
+
+      ColorNode(.white).frame(80).cornerRadius(16)
         .innerShadow(
           color: .black,
           opacity: 0.3,

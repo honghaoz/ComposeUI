@@ -38,8 +38,10 @@ final class TextDemoView: ComposeView {
     VStack(alignment: .left, spacing: 8) {
       Label("Ready for liftoff 🚀")
         .font(.boldSystemFont(ofSize: 20))
+
       Label("Labels are drawn, and fast.")
         .textColor(.systemGray)
+
       Text(
         "Text is a selectable text view.",
         font: .systemFont(ofSize: 15)

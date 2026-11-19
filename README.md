@@ -49,6 +49,7 @@ There are three ways to give a `ComposeView` its content. When the state changes
 
 Subclass `ComposeView` and override `content`:
 
+<!-- snippet: ReadmeDemo01QuickStart.swift quick-start -->
 ```swift
 import ComposeUI
 
@@ -71,6 +72,7 @@ class CounterView: ComposeView {
 
 Or pass a content closure to the initializer. The closure runs on each refresh, so it reads the latest state:
 
+<!-- snippet: ReadmeDemo01QuickStart.swift function contentClosure -->
 ```swift
 var count = 0
 let view = ComposeView {
@@ -84,6 +86,7 @@ view.refresh()
 
 Or set the content of an existing view:
 
+<!-- snippet: ReadmeDemo01QuickStart.swift function setContent -->
 ```swift
 let view = ComposeView()
 view.setContent {
@@ -99,8 +102,9 @@ Arrange nodes with `VStack`, `HStack` and `ZStack`, and size them with `Spacer`,
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo02Layout.swift content -->
 ```swift
 HStack(spacing: 12) {
   ZStack {
@@ -108,12 +112,15 @@ HStack(spacing: 12) {
     Label("DR").textColor(.white)
   }
   .frame(width: 44, height: 44)
+
   VStack(alignment: .left, spacing: 4) {
     Label("Design Review")
     Label("Today, 3:00 PM")
       .textColor(.systemGray)
   }
+
   Spacer()
+
   Label("Join").textColor(.systemBlue)
 }
 .padding(16)
@@ -135,8 +142,9 @@ Round the corners, add a border, or draw a drop shadow or an inner shadow along 
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo03Styling.swift content -->
 ```swift
 let path = { (size: CGSize) in
   CGPath(
@@ -149,14 +157,12 @@ let path = { (size: CGSize) in
     transform: nil
   )
 }
+
 HStack(spacing: 24) {
-  ColorNode(.white)
-    .frame(80)
-    .cornerRadius(16)
+  ColorNode(.white).frame(80).cornerRadius(16)
     .border(color: .systemBlue, width: 2)
-  ColorNode(.white)
-    .frame(80)
-    .cornerRadius(16)
+
+  ColorNode(.white).frame(80).cornerRadius(16)
     .dropShadow(
       color: .black,
       opacity: 0.2,
@@ -164,9 +170,8 @@ HStack(spacing: 24) {
       offset: .zero,
       path: path
     )
-  ColorNode(.white)
-    .frame(80)
-    .cornerRadius(16)
+
+  ColorNode(.white).frame(80).cornerRadius(16)
     .innerShadow(
       color: .black,
       opacity: 0.3,
@@ -190,14 +195,17 @@ HStack(spacing: 24) {
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo04Text.swift content -->
 ```swift
 VStack(alignment: .left, spacing: 8) {
   Label("Ready for liftoff 🚀")
     .font(.boldSystemFont(ofSize: 20))
+
   Label("Labels are drawn, and fast.")
     .textColor(.systemGray)
+
   Text(
     "Text is a selectable text view.",
     font: .systemFont(ofSize: 15)
@@ -220,15 +228,15 @@ Change state, call `refresh()`, and ComposéUI animates the difference.
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo05Animations.swift class -->
 ```swift
 var isOn = false
 
 @ComposeContentBuilder
 override var content: ComposeContent {
-  ColorNode(isOn ? .systemOrange
-    : .systemBlue)
+  ColorNode(isOn ? .systemOrange : .systemBlue)
     .frame(
       width: isOn ? 240 : 80,
       height: 80
@@ -256,8 +264,9 @@ Give a node a `transition`, and it slides, fades or scales in and out as the con
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo06Transitions.swift class -->
 ```swift
 var isShown = true
 
@@ -267,8 +276,10 @@ override var content: ComposeContent {
     if isShown {
       ColorNode(.systemBlue).frame(80)
         .transition(.slide(from: .top))
+
       ColorNode(.systemGreen).frame(80)
         .transition(.opacity())
+
       ColorNode(.systemOrange).frame(80)
         .transition(.scale())
     }
@@ -290,8 +301,9 @@ override var content: ComposeContent {
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo07Interaction.swift class -->
 ```swift
 var joined = false
 
@@ -299,8 +311,7 @@ var joined = false
 override var content: ComposeContent {
   let joined = self.joined
   ButtonNode { state in
-    ColorNode(joined ? .systemGray
-      : .systemBlue)
+    ColorNode(joined ? .systemGray : .systemBlue)
       .cornerRadius(20)
       .opacity(state == .pressed ? 0.6
         : state == .hovered ? 0.8 : 1)
@@ -329,26 +340,32 @@ A `ThemedColor` resolves to its light or dark value. When the appearance changes
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo08DarkMode.swift content -->
 ```swift
 let card = ThemedColor(
   light: .white,
   dark: Color(white: 0.15, alpha: 1)
 )
+
 let title = ThemedColor(
   light: .black,
   dark: .white
 )
+
 HStack {
   VStack(alignment: .left, spacing: 6) {
     Label("Good evening")
       .font(.boldSystemFont(ofSize: 20))
       .textColor(title)
+
     Label("3 tasks due today")
       .textColor(.systemGray)
   }
+
   Spacer()
+
   ColorNode(.systemGreen)
     .frame(12).cornerRadius(6)
 }
@@ -372,8 +389,9 @@ Mix in native views, Core Animation layers and SwiftUI views, here an `NSSwitch`
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo09Interop.swift content -->
 ```swift
 HStack(spacing: 32) {
   ViewNode(make: { _ in
@@ -383,15 +401,16 @@ HStack(spacing: 32) {
     return toggle
   })
   .frame(width: 38, height: 22)
+
   LayerNode<CAShapeLayer>(update: { dot, _ in
     dot.path = CGPath(
       ellipseIn: dot.bounds,
       transform: nil
     )
-    dot.fillColor =
-      NSColor.systemOrange.cgColor
+    dot.fillColor = NSColor.systemOrange.cgColor
   })
   .frame(40)
+
   SwiftUIViewNode {
     ProgressView(value: 0.6)
   }
@@ -412,8 +431,9 @@ A `ComposeView` scrolls when its content overflows and renders only the visible 
 
 <table>
 <tr>
-<td width="410">
+<td width="434">
 
+<!-- snippet: ReadmeDemo10Scrolling.swift content -->
 ```swift
 let titles = [
   "Midnight Drive", "Paper Lanterns",
@@ -421,28 +441,35 @@ let titles = [
   "City of Glass", "Summer Static",
   "Afterglow",
 ]
+
 let artists = [
   "Nova Park", "The Tidelines", "Ada Rivers",
   "June & the Echoes", "Low Orbit",
 ]
+
 let colors: [Color] = [
   .systemBlue, .systemTeal, .systemGreen,
   .systemOrange, .systemRed,
 ]
+
 VStack {
   for i in 1 ... 1000 {
     HStack(spacing: 12) {
       Label("\(i)")
         .textColor(.systemGray)
         .frame(width: 32, height: .intrinsic)
+
       ColorNode(colors[i % colors.count])
         .frame(40).cornerRadius(8)
+
       VStack(alignment: .left, spacing: 2) {
         Label(titles[i % titles.count])
         Label(artists[i % artists.count])
           .textColor(.systemGray)
       }
+
       Spacer()
+
       Label("3:\(10 + i * 7 % 50)")
         .textColor(.systemGray)
     }

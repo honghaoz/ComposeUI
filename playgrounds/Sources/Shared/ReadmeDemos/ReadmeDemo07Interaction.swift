@@ -39,8 +39,7 @@ final class InteractionDemoView: ComposeView {
   override var content: ComposeContent {
     let joined = self.joined
     ButtonNode { state in
-      ColorNode(joined ? .systemGray
-        : .systemBlue)
+      ColorNode(joined ? .systemGray : .systemBlue)
         .cornerRadius(20)
         .opacity(state == .pressed ? 0.6
           : state == .hovered ? 0.8 : 1)

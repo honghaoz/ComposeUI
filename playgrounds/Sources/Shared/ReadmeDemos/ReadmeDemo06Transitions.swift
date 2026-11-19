@@ -41,8 +41,10 @@ final class TransitionDemoView: ComposeView {
       if isShown {
         ColorNode(.systemBlue).frame(80)
           .transition(.slide(from: .top))
+
         ColorNode(.systemGreen).frame(80)
           .transition(.opacity())
+
         ColorNode(.systemOrange).frame(80)
           .transition(.scale())
       }

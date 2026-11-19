@@ -41,12 +41,15 @@ final class LayoutDemoView: ComposeView {
         Label("DR").textColor(.white)
       }
       .frame(width: 44, height: 44)
+
       VStack(alignment: .left, spacing: 4) {
         Label("Design Review")
         Label("Today, 3:00 PM")
           .textColor(.systemGray)
       }
+
       Spacer()
+
       Label("Join").textColor(.systemBlue)
     }
     .padding(16)
