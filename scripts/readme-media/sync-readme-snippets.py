@@ -19,8 +19,8 @@ The parts are:
 
 The script rewrites only the code blocks and leaves the rest of the README unchanged. With --check, it writes nothing,
 lists the snippets that differ from their demos and exits with status 1 if any do. It also warns about lines longer than
-42 characters, which widen a section's code table past 447 pixels, so the image no longer fits beside the code (see
-the README in this folder for how the widths are worked out).
+42 characters, which widen a section's code table past the 447 pixels of the others and leave less room for the image
+beside it (see the README in this folder for how the widths are worked out).
 """
 import os
 import re
