@@ -38,19 +38,23 @@ final class InteractionDemoView: ComposeView {
   @ComposeContentBuilder
   override var content: ComposeContent {
     let joined = self.joined
-    ButtonNode { state in
-      ColorNode(joined ? .systemGray : .systemBlue)
-        .cornerRadius(20)
-        .opacity(state == .pressed ? 0.6
-          : state == .hovered ? 0.8 : 1)
-        .overlay {
-          Label(joined ? "Joined" : "Join")
-            .textColor(.white)
-        }
-        .frame(width: 120, height: 40)
-    } onTap: { [weak self] in
-      self?.joined.toggle()
-      self?.refresh()
-    }
+    ButtonNode(
+      content: { state in
+        ColorNode(joined ? .systemGray : .systemBlue)
+          .cornerRadius(20)
+          .opacity(
+            state == .pressed ? 0.6 : (state == .hovered ? 0.8 : 1)
+          )
+          .overlay {
+            Label(joined ? "Joined" : "Join")
+              .textColor(.white)
+          }
+          .frame(width: 120, height: 40)
+      },
+      onTap: { [weak self] in
+        self?.joined.toggle()
+        self?.refresh()
+      }
+    )
   }
 }

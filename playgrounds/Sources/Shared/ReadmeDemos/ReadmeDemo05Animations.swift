@@ -38,10 +38,7 @@ final class AnimationDemoView: ComposeView {
   @ComposeContentBuilder
   override var content: ComposeContent {
     ColorNode(isOn ? .systemOrange : .systemBlue)
-      .frame(
-        width: isOn ? 240 : 80,
-        height: 80
-      )
+      .frame(width: isOn ? 240 : 80, height: 80)
       .cornerRadius(isOn ? 40 : 16)
       .animation(.spring())
   }

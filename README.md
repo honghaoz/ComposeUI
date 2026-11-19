@@ -237,10 +237,7 @@ var isOn = false
 @ComposeContentBuilder
 override var content: ComposeContent {
   ColorNode(isOn ? .systemOrange : .systemBlue)
-    .frame(
-      width: isOn ? 240 : 80,
-      height: 80
-    )
+    .frame(width: isOn ? 240 : 80, height: 80)
     .cornerRadius(isOn ? 40 : 16)
     .animation(.spring())
 }
@@ -310,20 +307,24 @@ var joined = false
 @ComposeContentBuilder
 override var content: ComposeContent {
   let joined = self.joined
-  ButtonNode { state in
-    ColorNode(joined ? .systemGray : .systemBlue)
-      .cornerRadius(20)
-      .opacity(state == .pressed ? 0.6
-        : state == .hovered ? 0.8 : 1)
-      .overlay {
-        Label(joined ? "Joined" : "Join")
-          .textColor(.white)
-      }
-      .frame(width: 120, height: 40)
-  } onTap: { [weak self] in
-    self?.joined.toggle()
-    self?.refresh()
-  }
+  ButtonNode(
+    content: { state in
+      ColorNode(joined ? .systemGray : .systemBlue)
+        .cornerRadius(20)
+        .opacity(
+          state == .pressed ? 0.6 : (state == .hovered ? 0.8 : 1)
+        )
+        .overlay {
+          Label(joined ? "Joined" : "Join")
+            .textColor(.white)
+        }
+        .frame(width: 120, height: 40)
+    },
+    onTap: { [weak self] in
+      self?.joined.toggle()
+      self?.refresh()
+    }
+  )
 }
 ```
 
@@ -427,7 +428,7 @@ HStack(spacing: 32) {
 
 ### Scrolling and performance
 
-A `ComposeView` scrolls when its content overflows and renders only the visible nodes, so a thousand rows scroll smoothly. See [performance](docs/performance.md) for how it stays fast.
+A `ComposeView` scrolls when its content overflows and renders only the visible nodes, so a thousand rows scroll smoothly.
 
 <table>
 <tr>
