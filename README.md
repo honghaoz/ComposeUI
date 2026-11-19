@@ -100,7 +100,7 @@ To nest a `ComposeView` in another view's content, use `ComposeViewNode`.
 
 Arrange nodes with `VStack`, `HStack` and `ZStack`, and size them with `Spacer`, `padding` and `frame`.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -132,17 +132,16 @@ HStack(spacing: 12) {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360" alt="A meeting row with a blue DR avatar, Design Review, Today, 3:00 PM and a Join button">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/803ac806-6b8c-4397-97b3-63c8b7bf674a" width="360" alt="A meeting row with a blue DR avatar, Design Review, Today, 3:00 PM and a Join button"><br clear="left"></p>
 
 ### Styling
 
 Round the corners, add a border, or draw a drop shadow or an inner shadow along any path.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -188,17 +187,16 @@ HStack(spacing: 24) {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360" alt="Three white rounded squares: one with a blue border, one with a drop shadow and one with an inner shadow">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/2d114017-7c7f-4dec-b966-abd30a6858a9" width="360" alt="Three white rounded squares: one with a blue border, one with a drop shadow and one with an inner shadow"><br clear="left"></p>
 
 ### Text
 
 `Label` draws its text into a layer, which keeps long lists fast, and `Text` is a selectable text view that takes attributed strings.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -221,17 +219,16 @@ VStack(alignment: .left, spacing: 8) {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360" alt="The heading Ready for liftoff, a gray label and a text view with the word selectable selected">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/b77ac5b1-8d5a-475e-ab05-1bc793f21df6" width="360" alt="The heading Ready for liftoff, a gray label and a text view with the word selectable selected"><br clear="left"></p>
 
 ### Animations
 
 Change state, call `refresh()`, and ComposéUI animates the difference.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -259,17 +256,16 @@ func toggle() {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360" alt="A blue rounded square that springs into a wide orange pill and back when toggled">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/69f51030-9a1e-47a0-ad77-ec51b6a1c034" width="360" alt="A blue rounded square that springs into a wide orange pill and back when toggled"><br clear="left"></p>
 
 ### Transitions
 
 Give a node a `transition`, and it slides, fades or scales in and out as the content changes.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -296,17 +292,16 @@ override var content: ComposeContent {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360" alt="Blue, green and orange squares that slide, fade and scale in and out as they are shown and hidden">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/a9af0c53-1760-4175-a3dd-8e0bae678ef7" width="360" alt="Blue, green and orange squares that slide, fade and scale in and out as they are shown and hidden"><br clear="left"></p>
 
 ### Interaction
 
 `ButtonNode` builds its content for each state, including hovered and pressed, and calls `onTap` when clicked or tapped.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -343,17 +338,16 @@ override var content: ComposeContent {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360" alt="A Join button that lightens on hover, dims when pressed and turns into a gray Joined button when clicked">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/706fbb11-5f2f-4e14-b5c6-32850831ad26" width="360" alt="A Join button that lightens on hover, dims when pressed and turns into a gray Joined button when clicked"><br clear="left"></p>
 
 ### Dark mode
 
 A `ThemedColor` resolves to its light or dark value. When the appearance changes, the view refreshes, and the backgrounds with an `animation` animate to their new colors, while text colors switch at once.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -392,17 +386,16 @@ HStack {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360" alt="A Good evening card that fades between the light and dark appearances">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/00cb4829-9317-4629-91b6-719ac610825f" width="360" alt="A Good evening card that fades between the light and dark appearances"><br clear="left"></p>
 
 ### Interop
 
 Mix in native views, Core Animation layers and SwiftUI views, here an `NSSwitch`, a `CAShapeLayer` and a SwiftUI `ProgressView`.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -437,17 +430,16 @@ HStack(spacing: 32) {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360" alt="A native switch turned on, an orange circle drawn by a shape layer and a SwiftUI progress bar">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/d8805adf-28da-46ff-9c70-4c8862c50590" width="360" alt="A native switch turned on, an orange circle drawn by a shape layer and a SwiftUI progress bar"><br clear="left"></p>
 
 ### Scrolling and performance
 
 A `ComposeView` scrolls when its content overflows and renders only the visible nodes, so a thousand rows scroll smoothly.
 
-<table>
+<table align="left">
 <tr>
 <td width="447">
 
@@ -504,11 +496,10 @@ VStack {
 ```
 
 </td>
-<td width="391">
-<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360" alt="A music library of a thousand songs that flings from song 1 to song 151 and glides back to the top">
-</td>
 </tr>
 </table>
+
+<p>&nbsp;&nbsp;&nbsp;<img src="https://github.com/user-attachments/assets/bc457d10-ab99-4948-895a-1ebc8b3178f3" width="360" alt="A music library of a thousand songs that flings from song 1 to song 151 and glides back to the top"><br clear="left"></p>
 
 ## License
 
