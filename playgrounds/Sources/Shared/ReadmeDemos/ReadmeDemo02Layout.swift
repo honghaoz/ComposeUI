@@ -37,7 +37,8 @@ final class LayoutDemoView: ComposeView {
   override var content: ComposeContent {
     HStack(spacing: 12) {
       ZStack {
-        ColorNode(.systemBlue).cornerRadius(22)
+        ColorNode(.systemBlue)
+          .cornerRadius(22)
         Label("DR").textColor(.white)
       }
       .frame(width: 44, height: 44)

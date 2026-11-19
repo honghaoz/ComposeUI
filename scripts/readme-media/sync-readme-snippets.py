@@ -19,7 +19,7 @@ The parts are:
 
 The script rewrites only the code blocks and leaves the rest of the README unchanged. With --check, it writes nothing,
 lists the snippets that differ from their demos and exits with status 1 if any do. It also warns about lines longer than
-49 characters, which widen a table's code column past the 505 pixels of the other tables (see the README in this
+42 characters, which widen a table's code column past the 447 pixels of the other tables (see the README in this
 folder for how the widths are worked out).
 """
 import os
@@ -29,7 +29,7 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEMOS = os.path.join(ROOT, "playgrounds", "Sources", "Shared", "ReadmeDemos")
 README = os.path.join(ROOT, "README.md")
-MAX_LINE_LENGTH = 49
+MAX_LINE_LENGTH = 42
 
 SNIPPET = re.compile(r"<!-- snippet: (?P<spec>[^>]+?) -->\n```swift\n(?P<code>.*?)\n```", re.S)
 

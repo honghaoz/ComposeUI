@@ -43,8 +43,9 @@ final class ScrollingDemoView: ComposeView {
     ]
 
     let artists = [
-      "Nova Park", "The Tidelines", "Ada Rivers",
-      "June & the Echoes", "Low Orbit",
+      "Nova Park", "The Tidelines",
+      "Ada Rivers", "June & the Echoes",
+      "Low Orbit",
     ]
 
     let colors: [Color] = [
@@ -57,12 +58,18 @@ final class ScrollingDemoView: ComposeView {
         HStack(spacing: 12) {
           Label("\(i)")
             .textColor(.systemGray)
-            .frame(width: 32, height: .intrinsic)
+            .frame(
+              width: 32,
+              height: .intrinsic
+            )
 
           ColorNode(colors[i % colors.count])
             .frame(40).cornerRadius(8)
 
-          VStack(alignment: .left, spacing: 2) {
+          VStack(
+            alignment: .left,
+            spacing: 2
+          ) {
             Label(titles[i % titles.count])
             Label(artists[i % artists.count])
               .textColor(.systemGray)
