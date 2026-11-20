@@ -876,14 +876,16 @@ class ViewNodeTests: XCTestCase {
   }
 
   #if canImport(AppKit)
-  func test_insert_viewWithoutLayer_isLayerBacked() {
-    // given: views that aren't layer-backed, an AppKit control from a custom view factory and an external view, in a
-    // compose view, with a handler that records the assertions
+  func test_insert_viewWithoutLayer_isLayerBacked() throws {
+    // given: views that aren't layer-backed, an AppKit control from the default view factory, an AppKit control from a
+    // custom view factory and an external view, in a compose view, with a handler that records the assertions
     let madeView = NSButton()
     let externalView = BaseView()
     externalView.wantsLayer = false
     let container = ComposeView {
       VStack {
+        ViewNode<NSSwitch>()
+          .fixedSize()
         ViewNode(make: { _ in madeView })
           .frame(width: 100, height: 30)
         ViewNode(externalView)
@@ -905,19 +907,36 @@ class ViewNodeTests: XCTestCase {
 
     // then: the compose view makes each view layer-backed before reading its layer, without asserting
     expect(assertionMessages) == []
+    let switchView = try container.contentContainerView.subviews.compactMap { $0 as? NSSwitch }.first.unwrap()
+    expect(switchView.wantsLayer) == true
     expect(madeView.wantsLayer) == true
     expect(externalView.wantsLayer) == true
   }
 
-  func test_make_default_isLayerBacked() throws {
-    // given: a node of an AppKit control with the default view factory
-    let node = ViewNode<NSSwitch>()
+  func test_insert_viewThatSetsUpItsLayerWhenAttached_keepsItsLayer() throws {
+    // given: views that set up their layer once they're in a superview, from the default and a custom view factory,
+    // each in a compose view
+    let defaultContainer = ComposeView {
+      ViewNode<SuperviewBackingView>()
+        .frame(width: 100, height: 100)
+    }
+    defaultContainer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    // when: making its view outside a compose view
-    let view = try makeView(of: node, initialFrame: nil)
+    let customContainer = ComposeView {
+      ViewNode(make: { SuperviewBackingView(frame: $0.initialFrame ?? .zero) })
+        .frame(width: 100, height: 100)
+    }
+    customContainer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    // then: the view is layer-backed
-    expect(view.wantsLayer) == true
+    // when: refreshing the compose views
+    defaultContainer.refresh(animated: false)
+    customContainer.refresh(animated: false)
+
+    // then: each view keeps the layer it set up when it was attached
+    let defaultView = try defaultContainer.contentContainerView.subviews.compactMap { $0 as? SuperviewBackingView }.first.unwrap()
+    expect(defaultView.layer?.backgroundColor) == NSColor.systemGreen.cgColor
+    let customView = try customContainer.contentContainerView.subviews.compactMap { $0 as? SuperviewBackingView }.first.unwrap()
+    expect(customView.layer?.backgroundColor) == NSColor.systemGreen.cgColor
   }
   #endif
 
@@ -1033,3 +1052,24 @@ private class FixedSizeView: BaseView {
   }
   #endif
 }
+
+#if canImport(AppKit)
+/// A view that turns on its layer once it's in a superview and sets up the layer from it.
+private final class SuperviewBackingView: NSView {
+
+  override func viewDidMoveToSuperview() {
+    super.viewDidMoveToSuperview()
+    if superview != nil {
+      wantsLayer = true
+    }
+  }
+
+  override func makeBackingLayer() -> CALayer {
+    let layer = super.makeBackingLayer()
+    if superview != nil {
+      layer.backgroundColor = NSColor.systemGreen.cgColor
+    }
+    return layer
+  }
+}
+#endif
