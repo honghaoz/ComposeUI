@@ -4,7 +4,7 @@
 
 ### Changes
 
-- On macOS, `ComposeView` layer-backs the views it makes, so a `ViewNode` of an AppKit control, such as `ViewNode<NSSwitch>()`, no longer needs `wantsLayer = true`. ([#333](https://github.com/honghaoz/ComposeUI/pull/333))
+- On macOS, `ComposeView` layer-backs the views it makes, so a `ViewNode` of an AppKit control, such as `ViewNode<NSSwitch>()`, no longer needs `wantsLayer = true`. ([#334](https://github.com/honghaoz/ComposeUI/pull/334))
 
 ## [0.0.6](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.6) (2026-11-18)
 
