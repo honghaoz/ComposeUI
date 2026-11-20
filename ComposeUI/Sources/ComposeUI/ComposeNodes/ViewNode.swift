@@ -86,7 +86,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// Or use `systemLayoutSizeFitting(_:)` to get the size of the view and set its `bounds.size`.
   ///
-  /// On macOS, a view without a layer is made layer-backed before it's inserted.
+  /// On macOS, a view without a layer is made layer-backed before its `willInsert` block runs and before it's inserted.
   ///
   /// You can also provide `intrinsicSize` to return a custom size based on the proposed container size.
   /// This closure is evaluated during layout and must be synchronous. If you need to measure the
@@ -136,6 +136,8 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   /// Make a view node with a view factory.
   ///
   /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
+  ///
+  /// On macOS, a view without a layer is made layer-backed right after it's made, before it has a superview.
   ///
   /// - Note: A view that always keeps its own size, such as `UISwitch`, requires a fixed size, such as
   ///   `ViewNode<UISwitch>().fixedSize()`.

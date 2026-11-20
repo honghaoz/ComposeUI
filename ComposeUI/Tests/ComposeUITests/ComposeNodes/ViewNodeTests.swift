@@ -880,7 +880,7 @@ class ViewNodeTests: XCTestCase {
     // given: views that aren't layer-backed, an AppKit control from the default view factory, an AppKit control from a
     // custom view factory and an external view, in a compose view, with a handler that records the assertions
     let madeView = NSButton()
-    let externalView = BaseView()
+    let externalView = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 30))
     externalView.wantsLayer = false
     let container = ComposeView {
       VStack {
