@@ -6,6 +6,10 @@
 
 - On macOS, `ComposeView` layer-backs a view without a layer as soon as it's made, so a `ViewNode` of an AppKit control, such as `ViewNode<NSSwitch>()`, no longer needs `wantsLayer = true`. ([#334](https://github.com/honghaoz/ComposeUI/pull/334))
 
+### Performance
+
+- On macOS, labels with a themed text color or shadow draw in a layer of their own and ahead of time, as other labels do, instead of through AppKit.
+
 ## [0.0.6](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.6) (2026-11-18)
 
 ### Breaking Changes
