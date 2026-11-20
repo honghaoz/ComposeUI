@@ -94,12 +94,29 @@ final class HostWindow: UIWindow {
     return windowScene
   }
 
+  /// Waits until a window scene is active.
+  fileprivate static func waitUntilActive(_ windowScene: UIWindowScene, file: StaticString, line: UInt) throws {
+    let deadline = Date(timeIntervalSinceNow: Constants.activationTimeout)
+    while windowScene.activationState != .foregroundActive, Date() < deadline {
+      RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
+    }
+    guard windowScene.activationState == .foregroundActive else {
+      fail("the host app's window scene doesn't become active", file: file, line: line)
+      throw ActivationTimeoutError()
+    }
+  }
+
+  private struct ActivationTimeoutError: Error {}
+
   // MARK: - Constants
 
   private enum Constants {
 
     /// How long to wait for the host app's window scene to connect.
     static let sceneConnectionTimeout: TimeInterval = 10
+
+    /// How long to wait for the host app's window scene to become active.
+    static let activationTimeout: TimeInterval = 30
 
     /// How long to wait for a window to wrap the layers of its views.
     static let wrappingTimeout: TimeInterval = 5
@@ -111,11 +128,15 @@ final class HostWindow: UIWindow {
 
 extension XCTestCase {
 
-  /// Makes a window in the host app's window scene, which hides when the test ends.
+  /// Makes a window in the host app's window scene once the scene is active, which hides when the test ends.
   ///
   /// - Returns: The window.
   func makeHostWindow(file: StaticString = #filePath, line: UInt = #line) throws -> HostWindow {
     let windowScene = try unwrap(HostWindow.hostScene(), "the host app's window scene", file: file, line: line)
+    // the tests can start before the system finishes launching the app, which can take seconds, such as while it
+    // renders the icon of the app that the run installed, and until then it answers none of the scene's requests, such
+    // as to rotate, which time out, so the window waits for the scene to be active
+    try HostWindow.waitUntilActive(windowScene, file: file, line: line)
     let window = HostWindow(scene: windowScene)
     // a visible window stays in its scene until it hides
     addTeardownBlock {
