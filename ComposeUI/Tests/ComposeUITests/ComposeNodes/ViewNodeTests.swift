@@ -674,25 +674,6 @@ class ViewNodeTests: XCTestCase {
     expect(viewWithoutInitialFrame.translatesAutoresizingMaskIntoConstraints) == true
   }
 
-  #if canImport(AppKit)
-  func test_make_default_plainView_isLayerBacked() throws {
-    // given: a node of plain views with the default view factory
-    let node = ViewNode<View>()
-
-    // when: making its view
-    let view = try makeView(of: node, initialFrame: nil)
-
-    // then: the view is layer-backed
-    expect(view.wantsLayer) == true
-
-    // when: making the view of a node of a view subclass with the default view factory
-    let subclassView = try makeView(of: ViewNode<ConstraintBasedView>(), initialFrame: nil)
-
-    // then: the subclass's layer backing is left to the subclass
-    expect(subclassView.wantsLayer) == false
-  }
-  #endif
-
   func test_make_nil_makesTheDefaultView() throws {
     // given: a node of a view subclass with a nil view factory
     let node = ViewNode<ConstraintBasedView>(make: nil)
@@ -895,21 +876,27 @@ class ViewNodeTests: XCTestCase {
   }
 
   #if canImport(AppKit)
-  func test_nonLayerBackedView_assertion() {
-    // given: a view that is not layer backed, in a compose view, with a test assertion failure handler
-    let view = BaseView()
-    view.wantsLayer = false // explicitly disable layer backing
-
-    let node = ViewNode(view)
-      .frame(width: 100, height: 100)
-
-    let container = ComposeView(content: { node })
+  func test_insert_viewWithoutLayer_isLayerBacked() throws {
+    // given: views that aren't layer-backed, an AppKit control from the default view factory, an AppKit control from a
+    // custom view factory and an external view, in a compose view, with a handler that records the assertions
+    let madeView = NSButton()
+    let externalView = BaseView(frame: CGRect(x: 0, y: 0, width: 100, height: 30))
+    externalView.wantsLayer = false
+    let container = ComposeView {
+      VStack {
+        ViewNode<NSSwitch>()
+          .fixedSize()
+        ViewNode(make: { _ in madeView })
+          .frame(width: 100, height: 30)
+        ViewNode(externalView)
+          .frame(width: 100, height: 30)
+      }
+    }
     container.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
 
-    var assertionCount = 0
-    Assert.setTestAssertionFailureHandler { message, file, line, column in
-      expect(message) == "\(view) should be layer backed. Please set `wantsLayer == true`."
-      assertionCount += 1
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
     }
     defer {
       Assert.resetTestAssertionFailureHandler()
@@ -918,8 +905,49 @@ class ViewNodeTests: XCTestCase {
     // when: refreshing the compose view
     container.refresh(animated: false)
 
-    // then: it should trigger the assertion for non-layer-backed view
-    expect(assertionCount) == 1
+    // then: the compose view makes each view layer-backed before reading its layer, without asserting
+    expect(assertionMessages) == []
+    let switchView = try container.contentContainerView.subviews.compactMap { $0 as? NSSwitch }.first.unwrap()
+    expect(switchView.wantsLayer) == true
+    expect(madeView.wantsLayer) == true
+    expect(externalView.wantsLayer) == true
+  }
+
+  func test_insert_viewWithoutLayer_withWillInsertOrWillUpdate_doesNotAssert() {
+    // given: AppKit controls without a layer, one with a will insert block and one with a will update block, in a
+    // compose view, with a handler that records the assertions
+    var layerInWillInsert: CALayer?
+    var layerInWillUpdate: CALayer?
+    let container = ComposeView {
+      VStack {
+        ViewNode<NSSwitch>(willInsert: { view, _ in
+          layerInWillInsert = view.layer
+        })
+        .fixedSize()
+        ViewNode<NSSwitch>()
+          .fixedSize()
+          .willUpdate { renderable, _ in
+            layerInWillUpdate = renderable.view?.layer
+          }
+      }
+    }
+    container.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
+    }
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
+
+    // when: refreshing the compose view
+    container.refresh(animated: false)
+
+    // then: each block sees the view's layer, without asserting
+    expect(assertionMessages) == []
+    expect(layerInWillInsert) != nil
+    expect(layerInWillUpdate) != nil
   }
   #endif
 

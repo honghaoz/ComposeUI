@@ -418,7 +418,6 @@ Mix in native views, Core Animation layers and SwiftUI views, here an `NSSwitch`
 HStack(spacing: 32) {
   ViewNode(make: { _ in
     let toggle = NSSwitch()
-    toggle.wantsLayer = true
     toggle.state = .on
     return toggle
   })

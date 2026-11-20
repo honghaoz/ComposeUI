@@ -43,7 +43,6 @@ final class InteropDemoView: ComposeView {
     HStack(spacing: 32) {
       ViewNode(make: { _ in
         let toggle = NSSwitch()
-        toggle.wantsLayer = true
         toggle.state = .on
         return toggle
       })
