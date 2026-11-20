@@ -1740,6 +1740,13 @@ open class ComposeView: BaseScrollView {
           renderable = reusableRenderable
         } else {
           renderable = renderableItem.makeRenderable(RenderableMakeContext(initialFrame: newFrame, contentView: self))
+          #if canImport(AppKit)
+          // the render pass reads a view's layer, which a view from `make` may not have, such as an AppKit control, so
+          // the view is layer-backed here instead of asking each `make` to do it
+          if let view = renderable.view, !view.wantsLayer {
+            view.wantsLayer = true
+          }
+          #endif
         }
 
         #if DEBUG

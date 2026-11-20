@@ -52,9 +52,7 @@ enum DefaultView {
       view = type.init()
     }
     #if canImport(AppKit)
-    if type == View.self {
-      view.wantsLayer = true
-    }
+    view.wantsLayer = true
     #endif
     view.translatesAutoresizingMaskIntoConstraints = true // use frame-based layout
     return view
