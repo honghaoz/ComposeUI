@@ -137,7 +137,7 @@ public struct ViewNode<T: View>: ComposeNode, IntrinsicSizableComposeNode {
   ///
   /// The node has a flexible size (with `isFixedWidth` and `isFixedHeight` set to `false`).
   ///
-  /// On macOS, a view without a layer is made layer-backed right after it's made, before it has a superview.
+  /// On macOS, a view without a layer is made layer-backed right after it's made for insertion, before its `willInsert` block runs.
   ///
   /// - Note: A view that always keeps its own size, such as `UISwitch`, requires a fixed size, such as
   ///   `ViewNode<UISwitch>().fixedSize()`.
