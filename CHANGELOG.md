@@ -8,7 +8,7 @@
 
 ### Performance
 
-- On macOS, labels with a themed text color or shadow draw in a layer of their own and ahead of time, as other labels do, instead of through AppKit.
+- On macOS, labels with a themed text color or shadow draw in a layer of their own and ahead of time, as other labels do, instead of through AppKit. ([#336](https://github.com/honghaoz/ComposeUI/pull/336))
 
 ## [0.0.6](https://github.com/honghaoz/ComposeUI/releases/tag/0.0.6) (2026-11-18)
 
