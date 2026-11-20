@@ -106,9 +106,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     let window = try makeHostWindow()
     let scene = try unwrap(window.windowScene)
     addTeardownBlock {
-      self.rotateToPortrait(scene)
+      try? self.rotateToPortrait(scene)
     }
-    rotateToPortrait(scene)
+    try rotateToPortrait(scene)
     var rowLayer: CALayer?
     let view = ComposeView {
       ColorNode(.red)
@@ -144,9 +144,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     let window = try makeHostWindow()
     let scene = try unwrap(window.windowScene)
     addTeardownBlock {
-      self.rotateToPortrait(scene)
+      try? self.rotateToPortrait(scene)
     }
-    rotateToPortrait(scene)
+    try rotateToPortrait(scene)
     var rowLayer: CALayer?
     var shadowLayer: CALayer?
     let view = ComposeView {
@@ -188,12 +188,13 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
   #if os(iOS)
 
-  /// Rotates the scene to portrait and waits until its windows finish rotating.
+  /// Rotates the scene to portrait and waits until its windows finish rotating, failing the test and throwing when it
+  /// doesn't.
   ///
   /// The scene starts in the simulated device's orientation, which can be landscape, so a test that rotates the scene
   /// to landscape puts it in portrait first, instead of assuming that it starts there.
   @available(iOS 16.0, *)
-  private func rotateToPortrait(_ scene: UIWindowScene, file: StaticString = #filePath, line: UInt = #line) {
+  private func rotateToPortrait(_ scene: UIWindowScene, file: StaticString = #filePath, line: UInt = #line) throws {
     scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { error in
       fail("the scene can't rotate to portrait: \(error)", file: file, line: line)
     }
@@ -204,9 +205,13 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     while scene.effectiveGeometry.interfaceOrientation != .portrait || isRotating(), Date() < deadline {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
     }
-    expect(scene.effectiveGeometry.interfaceOrientation, file: file, line: line) == .portrait
-    expect(isRotating(), file: file, line: line) == false
+    guard scene.effectiveGeometry.interfaceOrientation == .portrait, !isRotating() else {
+      fail("the scene doesn't rotate to portrait", file: file, line: line)
+      throw RotationTimeoutError()
+    }
   }
+
+  private struct RotationTimeoutError: Error {}
 
   /// Requests the scene to rotate to landscape, failing the test with the system's error when it refuses.
   @available(iOS 16.0, *)
