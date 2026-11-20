@@ -1740,6 +1740,13 @@ open class ComposeView: BaseScrollView {
           renderable = reusableRenderable
         } else {
           renderable = renderableItem.makeRenderable(RenderableMakeContext(initialFrame: newFrame, contentView: self))
+          #if canImport(AppKit)
+          // the item's blocks and the render pass read the view's layer from here on, so a view without one, such as an
+          // AppKit control, is layer-backed as soon as it's made
+          if let view = renderable.view, view.layer == nil {
+            view.wantsLayer = true
+          }
+          #endif
         }
 
         #if DEBUG
@@ -1765,15 +1772,6 @@ open class ComposeView: BaseScrollView {
         renderableItem.performWillUpdate(renderable, renderableUpdateContext)
 
         zOrder.insert(renderable, at: itemIndex, into: contentContainerView, ids: renderableItemIds, reusedRenderables: oldRenderableMap)
-
-        #if canImport(AppKit)
-        // setting the frame reads the view's layer, so a view without one, such as an AppKit control, is layer-backed
-        // here, after it's attached, so that a view that sets up its layer when it's attached still can
-        if let view = renderable.view, view.layer == nil {
-          view.wantsLayer = true
-        }
-        #endif
-
         renderable.setFrame(newFrame)
 
         zOrder.updateZPosition(of: renderable, zIndex: renderableItem.zIndex, index: itemIndex)

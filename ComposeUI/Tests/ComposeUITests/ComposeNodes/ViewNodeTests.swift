@@ -913,30 +913,41 @@ class ViewNodeTests: XCTestCase {
     expect(externalView.wantsLayer) == true
   }
 
-  func test_insert_viewThatSetsUpItsLayerWhenAttached_keepsItsLayer() throws {
-    // given: views that set up their layer once they're in a superview, from the default and a custom view factory,
-    // each in a compose view
-    let defaultContainer = ComposeView {
-      ViewNode<SuperviewBackingView>()
-        .frame(width: 100, height: 100)
+  func test_insert_viewWithoutLayer_withWillInsertOrWillUpdate_doesNotAssert() {
+    // given: AppKit controls without a layer, one with a will insert block and one with a will update block, in a
+    // compose view, with a handler that records the assertions
+    var layerInWillInsert: CALayer?
+    var layerInWillUpdate: CALayer?
+    let container = ComposeView {
+      VStack {
+        ViewNode<NSSwitch>(willInsert: { view, _ in
+          layerInWillInsert = view.layer
+        })
+        .fixedSize()
+        ViewNode<NSSwitch>()
+          .fixedSize()
+          .willUpdate { renderable, _ in
+            layerInWillUpdate = renderable.view?.layer
+          }
+      }
     }
-    defaultContainer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    container.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
 
-    let customContainer = ComposeView {
-      ViewNode(make: { SuperviewBackingView(frame: $0.initialFrame ?? .zero) })
-        .frame(width: 100, height: 100)
+    var assertionMessages: [String] = []
+    Assert.setTestAssertionFailureHandler { message, _, _, _ in
+      assertionMessages.append(message)
     }
-    customContainer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    defer {
+      Assert.resetTestAssertionFailureHandler()
+    }
 
-    // when: refreshing the compose views
-    defaultContainer.refresh(animated: false)
-    customContainer.refresh(animated: false)
+    // when: refreshing the compose view
+    container.refresh(animated: false)
 
-    // then: each view keeps the layer it set up when it was attached
-    let defaultView = try defaultContainer.contentContainerView.subviews.compactMap { $0 as? SuperviewBackingView }.first.unwrap()
-    expect(defaultView.layer?.backgroundColor) == NSColor.systemGreen.cgColor
-    let customView = try customContainer.contentContainerView.subviews.compactMap { $0 as? SuperviewBackingView }.first.unwrap()
-    expect(customView.layer?.backgroundColor) == NSColor.systemGreen.cgColor
+    // then: each block sees the view's layer, without asserting
+    expect(assertionMessages) == []
+    expect(layerInWillInsert) != nil
+    expect(layerInWillUpdate) != nil
   }
   #endif
 
@@ -1052,24 +1063,3 @@ private class FixedSizeView: BaseView {
   }
   #endif
 }
-
-#if canImport(AppKit)
-/// A view that turns on its layer once it's in a superview and sets up the layer from it.
-private final class SuperviewBackingView: NSView {
-
-  override func viewDidMoveToSuperview() {
-    super.viewDidMoveToSuperview()
-    if superview != nil {
-      wantsLayer = true
-    }
-  }
-
-  override func makeBackingLayer() -> CALayer {
-    let layer = super.makeBackingLayer()
-    if superview != nil {
-      layer.backgroundColor = NSColor.systemGreen.cgColor
-    }
-    return layer
-  }
-}
-#endif
