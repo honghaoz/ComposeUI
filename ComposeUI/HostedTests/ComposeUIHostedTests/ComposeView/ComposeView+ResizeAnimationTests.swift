@@ -102,9 +102,13 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       return
     }
 
-    // given: a view filling the window, with a row inset from its edges
+    // given: a scene in portrait, and a view filling its window, with a row inset from its edges
     let window = try makeHostWindow()
     let scene = try unwrap(window.windowScene)
+    addTeardownBlock {
+      try? self.rotateToPortrait(scene)
+    }
+    try rotateToPortrait(scene)
     var rowLayer: CALayer?
     let view = ComposeView {
       ColorNode(.red)
@@ -119,14 +123,11 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     window.contentView.addSubview(view)
     view.layoutIfNeeded()
     let row = try unwrap(rowLayer)
-    addTeardownBlock {
-      self.restorePortrait(of: scene)
-    }
     let portraitWidth = view.bounds.width
     pauseTime(of: window.contentView.layer)
 
     // when: rotating to landscape
-    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
+    requestLandscape(of: scene)
 
     // then: the row resizes with the rotation's animation
     try expectFollowsResize(row: row, of: view, from: portraitWidth, to: { view.bounds.width })
@@ -138,9 +139,14 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
       return
     }
 
-    // given: a view filling the window, with a row and a card with a drop shadow, in a window whose time runs
+    // given: a scene in portrait, and a view filling its window, with a row and a card with a drop shadow, in a window
+    // whose time runs
     let window = try makeHostWindow()
     let scene = try unwrap(window.windowScene)
+    addTeardownBlock {
+      try? self.rotateToPortrait(scene)
+    }
+    try rotateToPortrait(scene)
     var rowLayer: CALayer?
     var shadowLayer: CALayer?
     let view = ComposeView {
@@ -164,12 +170,9 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     let row = try unwrap(rowLayer)
     shadowLayer = row.superlayer?.sublayers?.first { $0 is DropShadowLayer }
     let shadow = try unwrap(shadowLayer, "the drop shadow's layer")
-    addTeardownBlock {
-      self.restorePortrait(of: scene)
-    }
 
     // when: rotating to landscape, which UIKit commits in a later turn of the run loop than the layout
-    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
+    requestLandscape(of: scene)
     let viewAnimation = try committedSizeAnimation(of: view.layer)
 
     // then: the row's animation and the shadow's path animation begin when the view's does
@@ -185,15 +188,37 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
 
   #if os(iOS)
 
-  /// Rotates the scene back to portrait and waits until it is, so that the next test starts in portrait.
+  /// Rotates the scene to portrait and waits until its windows finish rotating, failing the test and throwing when it
+  /// doesn't.
+  ///
+  /// The scene starts in the simulated device's orientation, which can be landscape, so a test that rotates the scene
+  /// to landscape puts it in portrait first, instead of assuming that it starts there.
   @available(iOS 16.0, *)
-  private func restorePortrait(of scene: UIWindowScene) {
-    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+  private func rotateToPortrait(_ scene: UIWindowScene, file: StaticString = #filePath, line: UInt = #line) throws {
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { error in
+      fail("the scene can't rotate to portrait: \(error)", file: file, line: line)
+    }
+    // the windows' rotation animations end after the scene's orientation changes, and a view added while they run
+    // would join them, so wait for both
+    let isRotating = { scene.windows.contains { $0.layer.animationKeys() != nil } }
     let deadline = Date(timeIntervalSinceNow: Constants.rotationTimeout)
-    while scene.effectiveGeometry.interfaceOrientation != .portrait, Date() < deadline {
+    while scene.effectiveGeometry.interfaceOrientation != .portrait || isRotating(), Date() < deadline {
       RunLoop.main.run(until: Date(timeIntervalSinceNow: Constants.pollInterval))
     }
-    expect(scene.effectiveGeometry.interfaceOrientation) == .portrait
+    guard scene.effectiveGeometry.interfaceOrientation == .portrait, !isRotating() else {
+      fail("the scene doesn't rotate to portrait", file: file, line: line)
+      throw RotationTimeoutError()
+    }
+  }
+
+  private struct RotationTimeoutError: Error {}
+
+  /// Requests the scene to rotate to landscape, failing the test with the system's error when it refuses.
+  @available(iOS 16.0, *)
+  private func requestLandscape(of scene: UIWindowScene, file: StaticString = #filePath, line: UInt = #line) {
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { error in
+      fail("the scene can't rotate to landscape: \(error)", file: file, line: line)
+    }
   }
 
   #endif
@@ -261,7 +286,7 @@ class ComposeView_ResizeAnimationTests: XCTestCase {
     /// How long to wait for the commit that begins the view's animation.
     static let commitTimeout: TimeInterval = 2
 
-    /// How long to wait for the scene to rotate back to portrait.
+    /// How long to wait for the scene to rotate to portrait.
     static let rotationTimeout: TimeInterval = 2
 
     /// How long each run loop turn of a wait runs for.
