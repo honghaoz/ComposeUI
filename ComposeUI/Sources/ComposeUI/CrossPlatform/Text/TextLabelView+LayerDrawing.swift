@@ -170,6 +170,12 @@ extension NSAttributedString {
          Constants.shadowKey,
          Constants.linkKey:
       return true
+    case Constants.themedForegroundColorKey,
+         Constants.themedBackgroundColorKey,
+         Constants.themedShadowKey:
+      // TextKit doesn't draw a themed style, so it draws the same in both, while the style that a theme resolves it to,
+      // which a text node adds next to it, is checked as itself
+      return true
     default:
       return false
     }
@@ -205,6 +211,9 @@ extension NSAttributedString {
     static let writingDirectionKey = NSAttributedString.Key.writingDirection.rawValue as CFString
     static let shadowKey = NSAttributedString.Key.shadow.rawValue as CFString
     static let linkKey = NSAttributedString.Key.link.rawValue as CFString
+    static let themedForegroundColorKey = NSAttributedString.Key.themedForegroundColor.rawValue as CFString
+    static let themedBackgroundColorKey = NSAttributedString.Key.themedBackgroundColor.rawValue as CFString
+    static let themedShadowKey = NSAttributedString.Key.themedShadow.rawValue as CFString
   }
 }
 

@@ -1060,6 +1060,36 @@ class LabelNodeTests: XCTestCase {
     return labelView?.attributedString
   }
 
+  #if canImport(AppKit)
+  func test_themedTextColor_drawsInTheLabelsLayer() throws {
+    try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")
+
+    // given: a label with a themed text color, in a compose view in a window in the light appearance
+    let window = TestWindow()
+    window.appearance = NSAppearance(named: .aqua)
+    let contentView = ComposeView {
+      Label("Good evening").textColor(ThemedColor(light: .black, dark: .white))
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    window.contentView().addSubview(contentView)
+
+    // when: rendering it
+    contentView.refresh(animated: false)
+
+    // then: the label draws its text in its layer, instead of through AppKit
+    let labelView = try unwrap(firstTextLabelView(in: contentView))
+    expect(labelView.test.drawsInLayer) == true
+
+    // when: the window changes to the dark appearance, which refreshes the label with the dark theme's text
+    window.appearance = NSAppearance(named: .darkAqua)
+    contentView.refresh(animated: false)
+
+    // then: the label still draws in its layer, in the dark theme's color
+    expect(labelView.test.drawsInLayer) == true
+    expect(labelView.attributedString.foregroundColor()) == .white
+  }
+  #endif
+
   private func firstRenderableItem(of node: LabelNode) -> RenderableItem? {
     var node = node
     let size = CGSize(width: 100, height: 100)

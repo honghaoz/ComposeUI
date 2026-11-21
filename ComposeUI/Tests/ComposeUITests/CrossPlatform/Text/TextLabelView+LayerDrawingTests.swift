@@ -893,6 +893,17 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
     expect(NSAttributedString(string: "Plain", attributes: [.font: font, .foregroundColor: NSColor.labelColor]).drawsTheSameInALayer) == true
     expect(NSAttributedString(string: "Underline", attributes: [.underlineStyle: NSUnderlineStyle.single.union(.byWord).rawValue, .underlineColor: NSColor.red]).drawsTheSameInALayer) == true
 
+    // then: a text with themed styles draws the same in a layer, with the styles that the theme resolves them to
+    let themedText = NSAttributedString(string: "Themed", attributes: [
+      .themedForegroundColor: ThemedColor(light: .black, dark: .white),
+      .themedShadow: Themed<NSShadow>(NSShadow()),
+    ])
+    expect(themedText.drawsTheSameInALayer) == true
+    expect(themedText.apply(theme: .light).drawsTheSameInALayer) == true
+    let themedBackgroundText = NSAttributedString(string: "Themed", attributes: [.themedBackgroundColor: ThemedColor(light: .yellow, dark: .blue)])
+    expect(themedBackgroundText.drawsTheSameInALayer) == true
+    expect(themedBackgroundText.apply(theme: .light).drawsTheSameInALayer) == false
+
     // then: a font with color glyphs, a pattern color, a text block, a text list, an unverified underline and an
     // unverified style keep AppKit's drawing
     expect(NSAttributedString(string: "Emoji", attributes: [.font: NSFont(name: "Apple Color Emoji", size: 15) ?? font]).drawsTheSameInALayer) == false
@@ -1122,6 +1133,11 @@ class TextLabelView_LayerDrawingTests: XCTestCase {
       Case(name: "superscript", text: text("E = mc2", [.superscript: 1])),
       Case(name: "writing direction", text: text("Embedded direction", [.writingDirection: [NSWritingDirection.rightToLeft.rawValue | NSWritingDirectionFormatType.embedding.rawValue]])),
       Case(name: "link", text: link),
+      // themed styles, with the theme applied, as a text node shows them
+      Case(name: "themed styles", text: text("Themed color and shadow", [
+        .themedForegroundColor: ThemedColor(light: .systemRed, dark: .systemBlue),
+        .themedShadow: Themed<NSShadow>(shadow(offset: CGSize(width: 1, height: 1), blur: 1, color: .black)),
+      ]).apply(theme: .light)),
     ]
     if #available(macOS 11.0, *) {
       cases.append(Case(name: "tracking", text: text("Tracked text", [.tracking: 2])))

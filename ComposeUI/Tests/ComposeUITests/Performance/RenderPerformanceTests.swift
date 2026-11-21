@@ -121,6 +121,14 @@ class RenderPerformanceTests: BenchmarkTestCase {
     }
   }
 
+  func test_scroll_themedLabelRows_10000_drawn() {
+    // when: scrolling through 10000 rows of labels with themed text colors in a window, which draws the labels that each
+    // step changes
+    runScrollBenchmark(name: "scroll.themedLabels.10000.drawn", rowCount: 10000, draws: true) { i in
+      Self.makeThemedLabelRow(i)
+    }
+  }
+
   func test_scroll_flatSmallRows_5000() {
     // when: scrolling through 5000 flat small rows
     // small rows make many items visible (~105), amplifying the per-item z-order maintenance cost
@@ -1078,6 +1086,8 @@ class RenderPerformanceTests: BenchmarkTestCase {
     static let titleFont = Font.boldSystemFont(ofSize: 15)
     static let subtitleFont = Font.systemFont(ofSize: 13)
     static let subtitleColor = Color.gray
+    static let themedTitleColor = ThemedColor(light: .black, dark: .white)
+    static let themedSubtitleColor = ThemedColor(light: .darkGray, dark: .lightGray)
   }
 
   /// Measures repeated non-animated refreshes of a compose view with 200 rows that `row` makes, laid out, which each
@@ -1236,6 +1246,16 @@ class RenderPerformanceTests: BenchmarkTestCase {
       Spacer()
     }
     .padding(8)
+  }
+
+  /// A list row of a title and a subtitle, with text colors that differ between the light and the dark theme.
+  private static func makeThemedLabelRow(_ i: Int) -> some ComposeNode {
+    VStack(alignment: .left, spacing: 2) {
+      LabelNode("Row \(i) title")
+        .textColor(Constants.themedTitleColor)
+      LabelNode("Subtitle for row \(i) with longer text")
+        .textColor(Constants.themedSubtitleColor)
+    }
   }
 
   /// A list row like the nested row, with a one-line title and a two-line description.
