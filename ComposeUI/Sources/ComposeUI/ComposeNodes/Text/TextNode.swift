@@ -631,7 +631,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///   - context: The context of the view's update.
   private static func crossfadeIfAnimated(_ view: View, context: RenderableUpdateContext) {
     // the timing is read only for a changed text, since reading it copies the optional timing, which each update of an
-    // unchanged text would pay for
+    // unchanged text would pay for. a refresh without an animation leaves a crossfade in flight, which fades to the new
+    // text when it would have ended, as such a refresh leaves the other animations in flight
     switch context.updateType {
     case .insert,
          .boundsChange:

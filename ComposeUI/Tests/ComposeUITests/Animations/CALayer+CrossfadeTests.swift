@@ -166,6 +166,39 @@ class CALayer_CrossfadeTests: XCTestCase {
     }
   }
 
+  func test_animateCrossfade_zeroDuration_endsTheCrossfadeInFlight() throws {
+    for (name, inFlightTiming, time) in [
+      ("delayed crossfade", AnimationTiming.linear(duration: 10, delay: 5), 12.0),
+      ("fading crossfade", AnimationTiming.linear(duration: 10), 15.0),
+    ] {
+      // given: a white layer over black, on a timeline paused at 10, with a crossfade to black in flight
+      let renderer = try PausedLayerRenderer(time: 10)
+      let layer = renderer.layer
+      layer.disableActions(for: "backgroundColor") {
+        layer.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
+      }
+      layer.animateCrossfade(timing: inFlightTiming)
+      renderer.move(to: 10)
+      renderer.move(to: time)
+
+      // when: the layer turns gray with a zero duration and no delay
+      layer.disableActions(for: "backgroundColor") {
+        layer.backgroundColor = CGColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1)
+      }
+      layer.animateCrossfade(timing: .linear(duration: 0))
+
+      // then: the crossfade in flight ends, and the layer shows gray at once, as after the crossfade would have ended
+      expect(layer.animationKeys(), name) == nil
+      renderer.move(to: 25)
+      let gray = renderer.renderedOpacity()
+      expect(gray, name).to(beBetween(0.2, and: 0.4))
+      for renderTime in [time, time + 2] {
+        renderer.move(to: renderTime)
+        expect(renderer.renderedOpacity(), "\(name) at \(renderTime)").to(beApproximatelyEqual(to: gray, within: 0.01))
+      }
+    }
+  }
+
   func test_animateCrossfade_delayed_showsTheOldRenderingUntilTheDelayEnds() throws {
     // given: a white layer over black, on a timeline paused at 10
     let renderer = try PausedLayerRenderer(time: 10)

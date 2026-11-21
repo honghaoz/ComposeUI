@@ -39,9 +39,12 @@ extension CALayer {
   /// an ease-out curve over the spring's duration, since a crossfade takes only a timing function. A crossfade replaces
   /// the one in flight, and starts from what the layer showed at the last commit instead of from the in-flight blend.
   ///
-  /// - Parameter timing: The animation timing. A zero duration without a delay shows the change at once.
+  /// - Parameter timing: The animation timing. A zero duration without a delay shows the change at once, ending the
+  ///   crossfade in flight.
   func animateCrossfade(timing: AnimationTiming) {
     guard timing.timing.duration > 0 || timing.delay > 0 else {
+      // a crossfade in flight would keep showing what the layer showed before it, during its delay and its fade
+      removeAnimation(forKey: kCATransition)
       return
     }
 
