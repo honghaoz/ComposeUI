@@ -586,7 +586,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     textView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &textView.lastThemedText)
     #endif
 
-    if textView.shownTextCount != shownTextCount {
+    let isThemeChanged = updateLastTheme(&textView.lastTheme, to: theme)
+    if textView.shownTextCount != shownTextCount || isThemeChanged {
       crossfadeIfAnimated(textView, context: context)
     }
   }
@@ -613,11 +614,31 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     // the label keeps the text that it shows until it's set to a different one, so a new object tells a changed text
     let lastText = labelView.attributedString
 
-    labelView.attributedString = themedText(of: labelInputs.attributedString, theme: contentView.theme, lastThemedText: &labelView.lastThemedText)
+    let theme = contentView.theme
 
-    if labelView.attributedString !== lastText {
+    labelView.attributedString = themedText(of: labelInputs.attributedString, theme: theme, lastThemedText: &labelView.lastThemedText)
+
+    let isThemeChanged = updateLastTheme(&labelView.lastTheme, to: theme)
+    if labelView.attributedString !== lastText || isThemeChanged {
       crossfadeIfAnimated(labelView, context: context)
     }
+  }
+
+  /// Updates the theme that a view last showed its text in.
+  ///
+  /// A text in a dynamic color, such as the default text color, stays the same in another theme, while the view draws
+  /// it in the theme's color, so a change of the theme changes the shown text too.
+  ///
+  /// - Parameters:
+  ///   - lastTheme: The theme that the view last showed its text in.
+  ///   - theme: The theme that the view shows its text in.
+  /// - Returns: Whether the theme differs from the one that the view last showed its text in.
+  private static func updateLastTheme(_ lastTheme: inout Theme?, to theme: Theme) -> Bool {
+    guard lastTheme != theme else {
+      return false
+    }
+    lastTheme = theme
+    return true
   }
 
   /// Crossfades a view's changed text, from the text that it showed to the text that it shows at the next commit, in an

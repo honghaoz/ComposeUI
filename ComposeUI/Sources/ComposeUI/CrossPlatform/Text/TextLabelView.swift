@@ -120,6 +120,9 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
 
+  /// The theme that `TextNode` last showed the text in, `nil` until it shows a text.
+  var lastTheme: Theme?
+
   /// Whether the view removes its text at the end of the run loop turn, unless it gets another text before.
   var isTextRemovalScheduled = false
 
@@ -259,6 +262,7 @@ public final class TextLabelView: View, ScheduledTextRemovable {
   /// such as when a scroll reuses the view in the same render pass.
   func resetForReuse() {
     lastThemedText = nil
+    lastTheme = nil
     ScheduledTextRemoval.schedule(self)
   }
 
@@ -777,7 +781,15 @@ public final class TextLabelView: View, ScheduledTextRemovable {
 
   #if canImport(UIKit)
 
+  #if DEBUG
+  /// The block that tests run each time UIKit draws the label, before it draws the text.
+  private var drawObserver: (() -> Void)?
+  #endif
+
   override public func draw(_ rect: CGRect) {
+    #if DEBUG
+    drawObserver?()
+    #endif
     drawText()
   }
 
@@ -884,6 +896,18 @@ public final class TextLabelView: View, ScheduledTextRemovable {
       set {
         host.forcedDrawsInLayer = newValue
         host.updateDrawingMode()
+      }
+    }
+    #endif
+
+    #if canImport(UIKit)
+    /// The block to run each time UIKit draws the label, before it draws the text.
+    var drawObserver: (() -> Void)? {
+      get {
+        host.drawObserver
+      }
+      set {
+        host.drawObserver = newValue
       }
     }
     #endif

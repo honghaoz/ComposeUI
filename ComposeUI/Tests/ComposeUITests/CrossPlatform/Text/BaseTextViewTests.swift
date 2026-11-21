@@ -1927,6 +1927,20 @@ class BaseTextViewTests: XCTestCase {
     expect(weakText) == nil
   }
 
+  func test_resetForReuse_forgetsTheLastTheme() {
+    for keepsTextNodeSettings in [true, false] {
+      // given: a text view with the theme that a text node showed its text in
+      let textView = BaseTextView(frame: CGRect(x: 0, y: 0, width: 200, height: 50))
+      textView.lastTheme = .dark
+
+      // when: resetting it for a reuse, keeping a text node's settings or not
+      textView.resetForReuse(keepsTextNodeSettings: keepsTextNodeSettings)
+
+      // then: it forgets the theme
+      expect(textView.lastTheme, "keeps text node settings \(keepsTextNodeSettings)") == nil
+    }
+  }
+
   func test_resetForReuse_keepingTextNodeSettings_keepsThem() {
     #if os(tvOS)
     let settings = [false]

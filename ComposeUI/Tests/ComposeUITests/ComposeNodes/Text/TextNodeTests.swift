@@ -630,6 +630,57 @@ class TextNodeTests: XCTestCase {
     }
   }
 
+  func test_refresh_animated_themeChange_crossfadesATextInADynamicColor() throws {
+    for isSelectable in [false, true] {
+      let name = isSelectable ? "text view" : "label"
+
+      // given: a text node in the default text color, a dynamic color that the view draws in the theme's color, with an
+      // animation, which shows in a label or a text view
+      var renderedView: View?
+      let contentView = ComposeView {
+        TextNode("Hello")
+          .selectable(isSelectable)
+          .animation(.easeIn(duration: 2))
+          .onUpdate { item, _ in
+            renderedView = item.view
+          }
+      }
+      contentView.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+      contentView.overrideTheme = .light
+      contentView.refresh(animated: false)
+      let view = try unwrap(renderedView, name)
+      let layer = try unwrap(view.layer, name)
+      let shownColor = shownForegroundColor(of: view)
+
+      // when: the theme changes, which an animated refresh shows
+      contentView.overrideTheme = .dark
+      contentView.refresh(animated: true)
+
+      // then: the view crossfades to the text in the dark theme, with the refresh's timing, while the text keeps its
+      // color
+      let transition = try unwrap(layer.animation(forKey: kCATransition) as? CATransition, name)
+      expect(transition.type, name) == .fade
+      expect(transition.duration, name) == 2
+      expect(transition.timingFunction, name) == CAMediaTimingFunction(name: .easeIn)
+      expect(shownForegroundColor(of: view), name) == shownColor
+
+      // when: an animated refresh keeps the theme
+      layer.removeAllAnimations()
+      contentView.refresh(animated: true)
+
+      // then: the view keeps showing the text without a crossfade
+      expect(layer.animation(forKey: kCATransition), name) == nil
+
+      // when: a refresh without an animation shows a change of the theme, then an animated refresh keeps the theme
+      contentView.overrideTheme = .light
+      contentView.refresh(animated: false)
+      contentView.refresh(animated: true)
+
+      // then: the view shows the text in the light theme without a crossfade
+      expect(layer.animation(forKey: kCATransition), name) == nil
+    }
+  }
+
   #if canImport(AppKit) || canImport(UIKit) && !os(tvOS)
   func test_refresh_animated_editedText_crossfadesOnlyAReplacedEdit() throws {
     // given: a rendered editable text node with an animation, and the user's edit of the text view
@@ -1280,11 +1331,54 @@ class TextNodeTests: XCTestCase {
     }
   }
 
-  /// Returns the red of the brightest pixel that a black or white text covers, which is 0 for a black text and 255 for
-  /// a white one.
+  func test_appearanceChange_rendersACrossfadeOfATextInADynamicColor() throws {
+    // a label draws in its layer or through AppKit, and a selectable text in a text view
+    let cases: [(name: String, isSelectable: Bool, drawsInLayer: Bool?)] = [
+      ("label drawing in its layer", false, true),
+      ("label drawing through AppKit", false, false),
+      ("text view", true, nil),
+    ]
+    for (name, isSelectable, drawsInLayer) in cases {
+      // given: a text in the default text color, a dynamic color, with an animation of 10 seconds, in a window in the
+      // light appearance
+      let renderer = try WindowRenderer(size: CGSize(width: 120, height: 40))
+      let contentView = ComposeView {
+        TextNode("Hello", font: .boldSystemFont(ofSize: 24))
+          .selectable(isSelectable)
+          .animation(.linear(duration: 10))
+      }
+      contentView.frame = renderer.view.bounds
+      renderer.view.addSubview(contentView)
+      contentView.refresh(animated: false)
+      let view = try unwrap(contentView.contentContainerView.subviews.first, name)
+      if let drawsInLayer {
+        try unwrap(view as? TextLabelView, name).test.forcedDrawsInLayer = drawsInLayer
+      }
+      RunLoop.main.run(until: Date())
+      let lightRed = try Self.brightestTextRed(in: renderer.render())
+
+      // when: the window turns dark, which the view refreshes for, as in an app
+      renderer.window.appearance = NSAppearance(named: .darkAqua)
+      let layer = try unwrap(view.layer, name)
+      expect(layer.animation(forKey: kCATransition), name).toEventuallyNot(beNil())
+
+      // then: the text shows its light color at the start, a blend halfway, and its dark color at the end
+      let transition = try unwrap(layer.animation(forKey: kCATransition), name)
+      let beginTime = layer.convertTime(transition.beginTime, to: nil)
+      let startRed = try Self.brightestTextRed(in: renderer.render(at: beginTime))
+      let halfwayRed = try Self.brightestTextRed(in: renderer.render(at: beginTime + 5))
+      let endRed = try Self.brightestTextRed(in: renderer.render(at: beginTime + 10))
+      expect(startRed, name) == lightRed
+      expect(endRed - lightRed, name) > 150
+      expect(Double(halfwayRed), name).to(beApproximatelyEqual(to: Double(lightRed + endRed) / 2, within: 2))
+    }
+  }
+
+  /// Returns the red of the brightest pixel of a black or white text, premultiplied by its alpha, which is 0 for a black
+  /// text and 255 for an opaque white one.
   private static func brightestTextRed(in pixels: RenderedPixels) -> Int {
     var red = 0
-    for index in stride(from: 0, to: pixels.bytes.count, by: 4) where pixels.bytes[index + 3] == 255 {
+    for index in stride(from: 0, to: pixels.bytes.count, by: 4) {
       red = max(red, Int(pixels.bytes[index + 2]))
     }
     return red

@@ -655,8 +655,8 @@ class TextLabelViewTests: XCTestCase {
   // MARK: - Reuse
 
   func test_resetForReuse_keepsTheSettingsAndTheTextUntilTheEndOfTheRunLoopTurn() {
-    // given: a label view with settings and a text, drawn, and the record of the text that a text node applied a theme
-    // to
+    // given: a label view with settings and a text, drawn, and the records of the text that a text node applied a theme
+    // to and of the theme that it showed the text in
     let labelView = TextLabelView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
     let text = NSAttributedString(string: "Hello")
     labelView.numberOfLines = 2
@@ -665,18 +665,20 @@ class TextLabelViewTests: XCTestCase {
     labelView.attributedString = text
     Self.clearNeedsDisplay(labelView)
     labelView.lastThemedText = (text, .light, text)
+    labelView.lastTheme = .light
     let countBefore = BaseTextView.scheduledTextRemovalCount
 
     // when: resetting it for a reuse by a text node
     labelView.resetForReuse()
 
     // then: it keeps the settings and the text, which it removes at the end of the run loop turn, and forgets the themed
-    // text
+    // text and the theme
     expect(labelView.numberOfLines) == 2
     expect(labelView.lineBreakMode) == .byTruncatingTail
     expect(labelView.textContainerInset) == CGSize(width: 4, height: 2)
     expect(labelView.attributedString.string) == "Hello"
     expect(labelView.lastThemedText == nil) == true
+    expect(labelView.lastTheme) == nil
     expect(BaseTextView.scheduledTextRemovalCount) == countBefore + 1
 
     // when: the run loop turn ends

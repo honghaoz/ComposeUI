@@ -359,7 +359,7 @@ override var content: ComposeContent {
 
 ### Dark mode
 
-A `ThemedColor` resolves to its light or dark value. When the appearance changes, the view refreshes, and with an `animation`, the backgrounds animate to their new colors and the texts with a themed color crossfade to theirs.
+A `ThemedColor` resolves to its light or dark value. When the appearance changes, the view refreshes, and with an `animation`, the backgrounds animate to their new colors and the texts crossfade to theirs.
 
 <table align="left">
 <tr>
