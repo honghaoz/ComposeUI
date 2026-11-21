@@ -42,9 +42,8 @@ public typealias Text = TextNode
 /// A text that the user can neither edit nor select shows in a `TextLabelView`, and an editable or selectable text
 /// shows in a `BaseTextView`.
 ///
-/// Performance note: Using `fixedSize(width:height:)` will make the text node
-/// re-calculate the intrinsic text size on layout, which is expensive. So it is
-/// preferred to use flexible size and do the size calculation once on your side.
+/// Performance note: Using `fixedSize(width:height:)` will make the text node re-calculate the intrinsic text size on
+/// layout, which is expensive. So it is preferred to use flexible size and do the size calculation once on your side.
 public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
   // MARK: - Text storage
@@ -433,6 +432,7 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
             case .boundsChange:
               return
             }
+
             TextNode.updateTextView(
               view,
               theme: context.contentView.theme,
@@ -441,7 +441,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
               lineBreakMode: lineBreakMode,
               textContainerInset: textContainerInset,
               isEditable: isEditable,
-              isSelectable: isSelectable
+              isSelectable: isSelectable,
+              context: context
             )
           },
           reuseId: Self.textViewReuseId(isEditable: isEditable, isSelectable: isSelectable),
@@ -474,7 +475,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
             case .boundsChange:
               return
             }
-            TextNode.updateLabelView(view, labelInputs: labelInputs, contentView: context.contentView)
+
+            TextNode.updateLabelView(view, labelInputs: labelInputs, context: context)
           },
           reuseId: ReuseId(namespace: .framework, id: "TextLabelView", reusesInPlace: true),
           resetForReuse: { $0.resetForReuse() }
@@ -511,7 +513,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
                                      lineBreakMode: NSLineBreakMode,
                                      textContainerInset: CGSize,
                                      isEditable: Bool,
-                                     isSelectable: Bool)
+                                     isSelectable: Bool,
+                                     context: RenderableUpdateContext)
   {
     // a refresh updates each text view with settings that rarely change, and setting some of them costs work even when
     // the value is unchanged, such as about 300 ns each for the inset and `isSelectable` on macOS, so a setting is set
@@ -550,6 +553,8 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
     }
     #endif
 
+    let shownTextCount = textView.shownTextCount
+
     #if canImport(AppKit)
     textView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &textView.lastThemedText)
     #endif
@@ -580,9 +585,15 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
 
     textView.attributedString = themedText(of: attributedString, theme: theme, lastThemedText: &textView.lastThemedText)
     #endif
+
+    if textView.shownTextCount != shownTextCount {
+      crossfadeIfAnimated(textView, context: context)
+    }
   }
 
-  private static func updateLabelView(_ labelView: TextLabelView, labelInputs: LabelInputs, contentView: ComposeView) {
+  private static func updateLabelView(_ labelView: TextLabelView, labelInputs: LabelInputs, context: RenderableUpdateContext) {
+    let contentView: ComposeView = context.contentView
+
     #if canImport(AppKit)
     // the label takes the image that its compose view drew ahead of time for the text, if any, when it gets the text
     labelView.imageCache = contentView.prefetchCache(of: TextLabelImageCache.self)
@@ -599,7 +610,37 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
       labelView.textContainerInset = labelInputs.textContainerInset
     }
 
+    // the label keeps the text that it shows until it's set to a different one, so a new object tells a changed text
+    let lastText = labelView.attributedString
+
     labelView.attributedString = themedText(of: labelInputs.attributedString, theme: contentView.theme, lastThemedText: &labelView.lastThemedText)
+
+    if labelView.attributedString !== lastText {
+      crossfadeIfAnimated(labelView, context: context)
+    }
+  }
+
+  /// Crossfades a view's changed text, from the text that it showed to the text that it shows at the next commit, in an
+  /// animated refresh.
+  ///
+  /// A drawn text's colors can't be interpolated, so an animated refresh shows a change of the text as a crossfade,
+  /// which for a change of color looks the same as interpolating it.
+  ///
+  /// - Parameters:
+  ///   - view: The view whose text changed.
+  ///   - context: The context of the view's update.
+  private static func crossfadeIfAnimated(_ view: View, context: RenderableUpdateContext) {
+    // the timing is read only for a changed text, since reading it copies the optional timing, which each update of an
+    // unchanged text would pay for
+    switch context.updateType {
+    case .insert,
+         .boundsChange:
+      return
+    case .refresh:
+      if let animationTiming = context.animationTiming {
+        view.layer().animateCrossfade(timing: animationTiming)
+      }
+    }
   }
 
   /// Returns the block that draws a label's text ahead of time, before the label scrolls in, `nil` on the systems whose
