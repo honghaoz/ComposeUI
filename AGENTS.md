@@ -37,7 +37,8 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 
 # Build, Test, and Development Commands
 
-- `make bootstrap`: bootstrap tools, hooks, and dependencies.
+- `make bootstrap`: download the scripts and tools and install the git hooks.
+- `make update-packages`: update the Swift package dependencies of the framework package, the hosted tests and the playground.
 - `make build`: build root package in release mode.
 - `make format`: group the imports, then run SwiftFormat + SwiftLint autocorrect across the repo.
 - `make lint`: check the import groups, then run SwiftFormat lint + SwiftLint checks.

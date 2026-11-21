@@ -2,11 +2,6 @@
 
 set -e
 
-# change to the directory in which this script is located
-pushd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 || exit 1
-
-# ===------ BEGIN ------===
-
 # OVERVIEW:
 # Bootstraps the development environment.
 
@@ -83,17 +78,6 @@ case "$OS" in
       "$REPO_ROOT/scripts/git/install-git-hooks.sh"
     fi
 
-    # update packages if needed
-    echo ""
-    if [ "${CI:-}" = "true" ]; then
-      echo "Skipping package update in CI"
-    else
-      echo "🔄 Update packages..."
-      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ComposeUI
-      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./ComposeUI/HostedTests/ComposeUIHostedTests.xcodeproj
-      "$REPO_ROOT/scripts/swift-package/update-packages.sh" ./playgrounds/ComposeUIPlayground.xcodeproj
-    fi
-
     echo ""
     echo "🎉 Done."
     ;;
@@ -112,8 +96,3 @@ case "$OS" in
   echo "Unknown OS: $OS"
   ;;
 esac
-
-# ===------ END ------===
-
-# return to whatever directory we were in when this script was run
-popd >/dev/null 2>&1 || exit 0

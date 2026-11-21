@@ -7,6 +7,13 @@ MAKEFILE_DIR = $(shell cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd
 bootstrap: # Bootstrap the environment.
 	@scripts/bootstrap.sh
 
+.PHONY: update-packages
+update-packages: # Update Swift package dependencies.
+	@scripts/swift-package/update-packages.sh \
+		ComposeUI \
+		ComposeUI/HostedTests/ComposeUIHostedTests.xcodeproj \
+		playgrounds/ComposeUIPlayground.xcodeproj
+
 .PHONY: build
 build: # Build the package.
 	@echo build: $(MAKEFILE_DIR_NAME)
