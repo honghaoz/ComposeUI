@@ -465,17 +465,18 @@ class BaseScrollViewTests: XCTestCase {
     containerView.overrideUserInterfaceStyle = .light
     let scrollView = BaseScrollView(frame: containerView.bounds)
     containerView.addSubview(scrollView)
-    CATransaction.flush()
+    RunLoop.main.run(until: Date())
     var receivedThemes: [Theme] = []
     let cancellable = scrollView.themePublisher.sink { receivedThemes.append($0) }
     _ = cancellable
     expect(receivedThemes) == [.light]
 
-    // when: the container turns dark, which the next commit delivers to the scroll view
+    // when: the container turns dark, and the run loop turns once, which runs its blocks and then commits, delivering the
+    // change to the scroll view
     containerView.overrideUserInterfaceStyle = .dark
-    CATransaction.flush()
+    RunLoop.main.run(until: Date())
 
-    // then: the publisher emits the dark theme in the commit's layout of the scroll view, before the run loop turns
+    // then: the publisher emits the dark theme in the commit's layout of the scroll view, instead of in a later turn
     expect(receivedThemes) == [.light, .dark]
 
     // when: the run loop turns
