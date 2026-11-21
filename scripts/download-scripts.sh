@@ -40,6 +40,20 @@ declare -a scripts=(
   "scripts/swiftlint-beautify"
 )
 
+# --retry covers timeouts and HTTP 408/429/5xx. --retry-all-errors is required
+# for a dropped connection (curl 56), which is how the 503 showed up in CI; with
+# -f it also retries 4xx. --connect-timeout and --max-time turn a stall into a
+# retryable failure; --retry-max-time only limits when a new retry may start.
+CURL_RETRY=(
+  -fsSL
+  --retry 5
+  --retry-all-errors
+  --retry-delay 2
+  --retry-max-time 90
+  --connect-timeout 10
+  --max-time 30
+)
+
 # Get the contents of a directory on GitHub
 function get_contents() {
   if [ -z "$1" ]; then
@@ -51,18 +65,36 @@ function get_contents() {
   # remove trailing slash if it exists
   path="${path%/}"
 
-  # raw.githubusercontent.com and api.github.com sometimes return a transient
-  # 503 or drop the connection (curl 56). --retry covers those; --retry-all-errors
-  # also covers HTTP 5xx on curl versions that don't retry them by default.
-  local contents
-  contents=$(curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
-    "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH")
+  # curl only discards a failed attempt's body when writing to a file, not when
+  # stdout is captured, so a retried drop would otherwise concatenate JSON.
+  local tmp files_list dirs_list
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  if ! curl "${CURL_RETRY[@]}" \
+    "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH" \
+    -o "$tmp"; then
+    trap - EXIT
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! files_list=$(jq -r '.[] | select(.type == "file") | .path' "$tmp"); then
+    trap - EXIT
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! dirs_list=$(jq -r '.[] | select(.type == "dir") | .path' "$tmp"); then
+    trap - EXIT
+    rm -f "$tmp"
+    return 1
+  fi
+  trap - EXIT
+  rm -f "$tmp"
 
   echo "FILESSTART"
-  echo "$contents" | jq -r '.[] | select(.type == "file") | .path'
+  echo "$files_list"
   echo "FILESEND"
   echo "DIRSSTART"
-  echo "$contents" | jq -r '.[] | select(.type == "dir") | .path'
+  echo "$dirs_list"
   echo "DIRSEND"
 }
 
@@ -75,9 +107,21 @@ function download_file() {
   local path="$1"
   echo "Downloading $path"
   mkdir -p "$(dirname "$path")"
-  curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
-    "https://raw.githubusercontent.com/honghaoz/ChouTi/$BRANCH/$path" -o "$path"
-  chmod +x "$path"
+  # Write to a temp file so a failed or truncated response can't replace a
+  # previously downloaded script.
+  local tmp
+  tmp=$(mktemp "$path.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  if ! curl "${CURL_RETRY[@]}" \
+    "https://raw.githubusercontent.com/honghaoz/ChouTi/$BRANCH/$path" \
+    -o "$tmp"; then
+    trap - EXIT
+    rm -f "$tmp"
+    return 1
+  fi
+  chmod +x "$tmp"
+  mv "$tmp" "$path"
+  trap - EXIT
 }
 
 # Download a list of executable files from GitHub
@@ -101,7 +145,8 @@ function download_dirs() {
 
   local dirs="$1"
   for dir in $dirs; do
-    output=$(get_contents "$dir")
+    # set -e is off inside $(...), so a failed listing must be checked here.
+    output=$(get_contents "$dir") || return 1
     files_list=$(echo "$output" | sed -n '/FILESSTART/,/FILESEND/p' | grep -av "FILESSTART" | grep -av "FILESEND" || true)
     dirs_list=$(echo "$output" | sed -n '/DIRSSTART/,/DIRSEND/p' | grep -av "DIRSSTART" | grep -av "DIRSEND" || true)
 

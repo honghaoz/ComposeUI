@@ -30,16 +30,30 @@ case "$OS" in
       echo "📦 Download jq..."
       mkdir -p "$REPO_ROOT/bin"
       # Download to a temp file so a failed or truncated response can't leave a
-      # broken jq that the "already present" check would then skip.
+      # broken jq that the "already present" check would then skip. The EXIT trap
+      # removes the temp file if the run is interrupted before the move.
+      # --retry covers timeouts and HTTP 408/429/5xx. --retry-all-errors is
+      # required for a dropped connection (curl 56), which is how the 503 showed
+      # up in CI; with -f it also retries 4xx. --connect-timeout and --max-time
+      # turn a stall into a retryable failure; --retry-max-time only limits when
+      # a new retry may start.
+      CURL_RETRY=(
+        -fsSL
+        --retry 5
+        --retry-all-errors
+        --retry-delay 2
+        --retry-max-time 90
+        --connect-timeout 10
+        --max-time 30
+      )
       tmp=$(mktemp "$REPO_ROOT/bin/jq.XXXXXX")
-      if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
+      trap 'rm -f "$tmp"' EXIT
+      curl "${CURL_RETRY[@]}" \
         "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64" \
-        -o "$tmp"; then
-        rm -f "$tmp"
-        exit 1
-      fi
+        -o "$tmp"
       chmod +x "$tmp"
       mv "$tmp" "$REPO_ROOT/bin/jq"
+      trap - EXIT
     fi
 
     # download scripts
