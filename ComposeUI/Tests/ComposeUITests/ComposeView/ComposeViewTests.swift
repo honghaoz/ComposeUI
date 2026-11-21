@@ -774,6 +774,43 @@ class ComposeViewTests: XCTestCase {
 
   // MARK: - Theme
 
+  #if canImport(UIKit)
+  func test_traitChange_themeChanged_refreshesInTheCommit() throws {
+    // given: a rendered compose view in a light container, in a window, with a themed color that animates
+    var updateContext: RenderableUpdateContext?
+    var renderedLayer: CALayer?
+    let view = ComposeView {
+      LayerNode()
+        .backgroundColor(ThemedColor(light: .red, dark: .blue))
+        .animation(.linear(duration: 1))
+        .onUpdate { renderable, context in
+          updateContext = context
+          renderedLayer = renderable.layer
+        }
+    }
+    let window = TestWindow()
+    let containerView = UIView(frame: window.bounds)
+    window.addSubview(containerView)
+    containerView.overrideUserInterfaceStyle = .light
+    view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    containerView.addSubview(view)
+    view.refresh(animated: false)
+    RunLoop.main.run(until: Date())
+    let layer = try unwrap(renderedLayer)
+    expect(layer.backgroundColor) == Color.red.cgColor
+
+    // when: the container turns dark, and the run loop turns once, which runs its blocks and then commits, delivering the
+    // change to the view before it lays out and draws the views for it
+    containerView.overrideUserInterfaceStyle = .dark
+    RunLoop.main.run(until: Date())
+
+    // then: the view refreshes in the commit, animated, instead of in a later turn
+    expect(layer.backgroundColor) == Color.blue.cgColor
+    expect(updateContext?.updateType) == .refresh
+    expect(updateContext?.animationTiming) == .linear(duration: 1)
+  }
+  #endif
+
   func test_theme_duringARenderPass_staysTheThemeThePassReadFirst() throws {
     // given: a compose view in the light theme, whose first node reads the theme and then changes the view's appearance
     // to dark when it updates, and whose second node has a themed color

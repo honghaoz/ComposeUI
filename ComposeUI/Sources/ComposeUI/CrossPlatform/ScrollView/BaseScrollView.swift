@@ -77,6 +77,12 @@ open class BaseScrollView: ScrollView {
   #endif
 
   #if canImport(UIKit)
+  override open func layoutSubviews() {
+    super.layoutSubviews()
+
+    updatePendingTheme()
+  }
+
   override open func didMoveToSuperview() {
     super.didMoveToSuperview()
 
@@ -125,20 +131,37 @@ open class BaseScrollView: ScrollView {
   }
 
   private var pendingThemeToUpdate: Theme?
+
+  /// Schedules the theme to update at the view's next layout on UIKit, or in the next run loop block, whichever comes
+  /// first, so the changes made before it merge into one update.
   private func scheduleThemeUpdate(_ newTheme: Theme) {
+    #if canImport(UIKit)
+    // UIKit delivers a trait change in the commit that draws the views again for it, such as in a dynamic color, before
+    // it lays out the view, so the theme updates in that layout, for the subscribers to update the views before they
+    // draw, instead of in the run loop block after the commit
+    if newTheme != previousTheme {
+      setNeedsLayout()
+    }
+    #endif
+
     if pendingThemeToUpdate == nil {
       // no pending theme update, schedule an update
       RunLoop.main.perform(inModes: [.common]) { [weak self] in
-        guard let self, let newTheme = self.pendingThemeToUpdate else {
-          return
-        }
-
-        self.pendingThemeToUpdate = nil
-        self.updateTheme(newTheme)
+        self?.updatePendingTheme()
       }
     }
 
     pendingThemeToUpdate = newTheme
+  }
+
+  /// Updates the theme that a theme change scheduled, if any.
+  private func updatePendingTheme() {
+    guard let newTheme = pendingThemeToUpdate else {
+      return
+    }
+
+    pendingThemeToUpdate = nil
+    updateTheme(newTheme)
   }
 
   private var previousTheme: Theme? {

@@ -105,6 +105,9 @@ open class BaseTextView: TextView {
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
 
+  /// The theme that `TextNode` last showed the text in, `nil` until it shows a text.
+  var lastTheme: Theme?
+
   /// The undo manager that recorded the user's edits, if any. A label's text view has none, so it never reads its window's
   /// undo manager, which the window makes on the first read.
   private weak var undoManagerOfEdits: UndoManager?
@@ -360,6 +363,7 @@ open class BaseTextView: TextView {
       ignoreHitTest = false
     }
     lastThemedText = nil
+    lastTheme = nil
 
     isRichText = false
 
@@ -495,6 +499,9 @@ open class BaseTextView: UITextView {
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
+
+  /// The theme that `TextNode` last showed the text in, `nil` until it shows a text.
+  var lastTheme: Theme?
 
   /// Whether the text view is removing its text for a reuse by a text node.
   private var isRemovingTextForReuse = false
@@ -753,6 +760,7 @@ open class BaseTextView: UITextView {
     removeUndoActions()
 
     lastThemedText = nil
+    lastTheme = nil
 
     if !keepsTextNodeSettings {
       if numberOfLines != 0 {

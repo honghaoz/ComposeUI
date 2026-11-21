@@ -456,6 +456,37 @@ class BaseScrollViewTests: XCTestCase {
     expect(receivedThemes).toEventually(beEqual(to: [currentTheme, currentTheme.opposite, currentTheme]))
   }
 
+  #if canImport(UIKit)
+  func test_themePublisher_traitChange_publishesTheThemeInTheCommitsLayout() {
+    // given: a scroll view in a light container, in a window, observing its theme publisher
+    let window = TestWindow()
+    let containerView = UIView(frame: window.bounds)
+    window.addSubview(containerView)
+    containerView.overrideUserInterfaceStyle = .light
+    let scrollView = BaseScrollView(frame: containerView.bounds)
+    containerView.addSubview(scrollView)
+    RunLoop.main.run(until: Date())
+    var receivedThemes: [Theme] = []
+    let cancellable = scrollView.themePublisher.sink { receivedThemes.append($0) }
+    _ = cancellable
+    expect(receivedThemes) == [.light]
+
+    // when: the container turns dark, and the run loop turns once, which runs its blocks and then commits, delivering the
+    // change to the scroll view
+    containerView.overrideUserInterfaceStyle = .dark
+    RunLoop.main.run(until: Date())
+
+    // then: the publisher emits the dark theme in the commit's layout of the scroll view, instead of in a later turn
+    expect(receivedThemes) == [.light, .dark]
+
+    // when: the run loop turns
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+
+    // then: the publisher doesn't emit the theme again
+    expect(receivedThemes) == [.light, .dark]
+  }
+  #endif
+
   // MARK: - Clipping
 
   func test_clipsToBounds_byDefault() {
