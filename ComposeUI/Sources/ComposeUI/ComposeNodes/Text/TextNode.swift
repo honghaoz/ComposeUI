@@ -634,6 +634,9 @@ public struct TextNode: ComposeNode, IntrinsicSizableComposeNode {
   ///   - theme: The theme that the view shows its text in.
   /// - Returns: Whether the theme differs from the one that the view last showed its text in.
   private static func updateLastTheme(_ lastTheme: inout Theme?, to theme: Theme) -> Bool {
+    // any theme change counts, whatever colors the text has, instead of checking each color in both themes, which each
+    // platform resolves its own way. a text that looks the same in both themes gets a crossfade between identical
+    // contents, which restarts a crossfade of its own in flight, only when the appearance changes during one
     guard lastTheme != theme else {
       return false
     }
