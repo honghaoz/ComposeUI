@@ -68,16 +68,22 @@ function get_contents() {
 
   # curl only discards a failed attempt's body when writing to a file, not when
   # stdout is captured, so a retried drop would otherwise concatenate JSON.
-  local tmp files_list dirs_list
+  local tmp files_list dirs_list ok
   tmp=$(mktemp)
   trap 'rm -f "$tmp"' EXIT
-  curl "${CURL_RETRY[@]}" \
-    "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH" \
-    -o "$tmp"
-  files_list=$(jq -r '.[] | select(.type == "file") | .path' "$tmp")
-  dirs_list=$(jq -r '.[] | select(.type == "dir") | .path' "$tmp")
+  # This function only runs inside $(...), where set -e is off, so a failed
+  # curl or jq must be checked explicitly or the empty listing looks successful.
+  ok=0
+  if curl "${CURL_RETRY[@]}" \
+      "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH" \
+      -o "$tmp" \
+    && files_list=$(jq -r '.[] | select(.type == "file") | .path' "$tmp") \
+    && dirs_list=$(jq -r '.[] | select(.type == "dir") | .path' "$tmp"); then
+    ok=1
+  fi
   trap - EXIT
   rm -f "$tmp"
+  [ "$ok" -eq 1 ] || return 1
 
   echo "FILESSTART"
   echo "$files_list"
