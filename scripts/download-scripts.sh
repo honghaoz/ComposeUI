@@ -44,6 +44,7 @@ declare -a scripts=(
 # for a dropped connection (curl 56), which is how the 503 showed up in CI; with
 # -f it also retries 4xx. --connect-timeout and --max-time turn a stall into a
 # retryable failure; --retry-max-time only limits when a new retry may start.
+# Keep this array in sync with the same flags in scripts/bootstrap.sh.
 CURL_RETRY=(
   -fsSL
   --retry 5
@@ -70,23 +71,11 @@ function get_contents() {
   local tmp files_list dirs_list
   tmp=$(mktemp)
   trap 'rm -f "$tmp"' EXIT
-  if ! curl "${CURL_RETRY[@]}" \
+  curl "${CURL_RETRY[@]}" \
     "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH" \
-    -o "$tmp"; then
-    trap - EXIT
-    rm -f "$tmp"
-    return 1
-  fi
-  if ! files_list=$(jq -r '.[] | select(.type == "file") | .path' "$tmp"); then
-    trap - EXIT
-    rm -f "$tmp"
-    return 1
-  fi
-  if ! dirs_list=$(jq -r '.[] | select(.type == "dir") | .path' "$tmp"); then
-    trap - EXIT
-    rm -f "$tmp"
-    return 1
-  fi
+    -o "$tmp"
+  files_list=$(jq -r '.[] | select(.type == "file") | .path' "$tmp")
+  dirs_list=$(jq -r '.[] | select(.type == "dir") | .path' "$tmp")
   trap - EXIT
   rm -f "$tmp"
 
@@ -119,7 +108,9 @@ function download_file() {
     rm -f "$tmp"
     return 1
   fi
-  chmod +x "$tmp"
+  # mktemp creates 0600; chmod +x would leave 0711, and a script can't run
+  # without the read bit if another user executes it.
+  chmod 755 "$tmp"
   mv "$tmp" "$path"
   trap - EXIT
 }

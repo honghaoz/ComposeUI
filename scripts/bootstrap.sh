@@ -37,6 +37,7 @@ case "$OS" in
       # up in CI; with -f it also retries 4xx. --connect-timeout and --max-time
       # turn a stall into a retryable failure; --retry-max-time only limits when
       # a new retry may start.
+      # Keep this array in sync with the same flags in scripts/download-scripts.sh.
       CURL_RETRY=(
         -fsSL
         --retry 5
@@ -51,7 +52,9 @@ case "$OS" in
       curl "${CURL_RETRY[@]}" \
         "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64" \
         -o "$tmp"
-      chmod +x "$tmp"
+      # mktemp creates 0600; chmod +x would leave 0711, and a script can't run
+      # without the read bit if another user executes it.
+      chmod 755 "$tmp"
       mv "$tmp" "$REPO_ROOT/bin/jq"
       trap - EXIT
     fi
