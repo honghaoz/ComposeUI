@@ -28,8 +28,18 @@ case "$OS" in
       echo "📦 jq already present, skipping download"
     else
       echo "📦 Download jq..."
-      curl -sL https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64 -o "$REPO_ROOT/bin/jq"
-      chmod +x "$REPO_ROOT/bin/jq"
+      mkdir -p "$REPO_ROOT/bin"
+      # Download to a temp file so a failed or truncated response can't leave a
+      # broken jq that the "already present" check would then skip.
+      tmp=$(mktemp "$REPO_ROOT/bin/jq.XXXXXX")
+      if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
+        "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64" \
+        -o "$tmp"; then
+        rm -f "$tmp"
+        exit 1
+      fi
+      chmod +x "$tmp"
+      mv "$tmp" "$REPO_ROOT/bin/jq"
     fi
 
     # download scripts

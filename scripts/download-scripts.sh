@@ -51,7 +51,12 @@ function get_contents() {
   # remove trailing slash if it exists
   path="${path%/}"
 
-  local contents=$(curl -s "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH")
+  # raw.githubusercontent.com and api.github.com sometimes return a transient
+  # 503 or drop the connection (curl 56). --retry covers those; --retry-all-errors
+  # also covers HTTP 5xx on curl versions that don't retry them by default.
+  local contents
+  contents=$(curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
+    "https://api.github.com/repos/honghaoz/ChouTi/contents/$path?ref=$BRANCH")
 
   echo "FILESSTART"
   echo "$contents" | jq -r '.[] | select(.type == "file") | .path'
@@ -70,7 +75,8 @@ function download_file() {
   local path="$1"
   echo "Downloading $path"
   mkdir -p "$(dirname "$path")"
-  curl -fsSL https://raw.githubusercontent.com/honghaoz/ChouTi/$BRANCH/$path -o "$path"
+  curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
+    "https://raw.githubusercontent.com/honghaoz/ChouTi/$BRANCH/$path" -o "$path"
   chmod +x "$path"
 }
 
