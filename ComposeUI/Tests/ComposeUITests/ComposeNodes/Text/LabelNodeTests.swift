@@ -1060,6 +1060,32 @@ class LabelNodeTests: XCTestCase {
     return labelView?.attributedString
   }
 
+  func test_refresh_animated_textColorChange_crossfades() throws {
+    // given: a rendered label with an animation
+    var color = ThemedColor(light: .black, dark: .white)
+    let contentView = ComposeView {
+      Label("Good evening")
+        .textColor(color)
+        .animation(.easeInEaseOut(duration: 2))
+    }
+    contentView.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+    contentView.overrideTheme = .light
+    contentView.refresh(animated: false)
+    let labelView = try unwrap(firstTextLabelView(in: contentView))
+    let layer = try unwrap(labelView.layer as CALayer?)
+
+    // when: an animated refresh changes the label's text color
+    color = ThemedColor(light: .red, dark: .blue)
+    contentView.refresh(animated: true)
+
+    // then: the label crossfades to the new color, with the refresh's timing
+    let transition = try unwrap(layer.animation(forKey: kCATransition) as? CATransition)
+    expect(transition.type) == .fade
+    expect(transition.duration) == 2
+    expect(transition.timingFunction) == CAMediaTimingFunction(name: .easeInEaseOut)
+    expect(labelView.attributedString.foregroundColor()) == .red
+  }
+
   #if canImport(AppKit)
   func test_themedTextColor_drawsInTheLabelsLayer() throws {
     try skipUnless(TextLabelView.isLayerDrawingVerified, "a label draws in a layer only on the systems that the tests verify")

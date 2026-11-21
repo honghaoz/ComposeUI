@@ -95,7 +95,12 @@ open class BaseTextView: TextView {
       removeUndoActions()
     }
     textStorage?.setAttributedString(text)
+    shownTextCount &+= 1
   }
+
+  /// The number of texts that the text view has shown in place of another, which tells whether setting a text changed
+  /// the shown text.
+  private(set) var shownTextCount = 0
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?
@@ -481,7 +486,12 @@ open class BaseTextView: UITextView {
     if replacesCharacters {
       removeUndoActions()
     }
+    shownTextCount &+= 1
   }
+
+  /// The number of texts that the text view has shown in place of another, which tells whether setting a text changed
+  /// the shown text.
+  private(set) var shownTextCount = 0
 
   /// The text that `TextNode` last applied a theme to, with the theme and the themed text.
   var lastThemedText: (text: NSAttributedString, theme: Theme, themedText: NSAttributedString)?

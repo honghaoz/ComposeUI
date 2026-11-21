@@ -42,8 +42,8 @@ public typealias Label = LabelNode
 /// By default, the label node is single line, with a fixed size based on the text.
 /// If you set `numberOfLines` to multiple lines, the width will be flexible, and the height will be fixed.
 ///
-/// Use `fixedSize(width:height:)` to control whether the node uses its intrinsic
-/// content size or adapts to the container size for each dimension.
+/// Use `fixedSize(width:height:)` to control whether the node uses its intrinsic content size or adapts to the
+/// container size for each dimension.
 public struct LabelNode: ComposeNode, IntrinsicSizableComposeNode {
 
   private let text: String

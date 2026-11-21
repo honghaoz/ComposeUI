@@ -4,6 +4,7 @@
 
 ### Changes
 
+- In an animated refresh, `Label` and `Text` crossfade a change of their text, such as a themed text color on an appearance change, instead of switching at once. ([#338](https://github.com/honghaoz/ComposeUI/pull/338))
 - On macOS, `ComposeView` layer-backs a view without a layer as soon as it's made, so a `ViewNode` of an AppKit control, such as `ViewNode<NSSwitch>()`, no longer needs `wantsLayer = true`. ([#334](https://github.com/honghaoz/ComposeUI/pull/334))
 
 ### Performance
