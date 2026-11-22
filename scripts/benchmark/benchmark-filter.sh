@@ -8,7 +8,17 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)
+# zsh has no BASH_SOURCE, so resolve this file the zsh way when run or sourced there
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+  _script_file=${BASH_SOURCE[0]}
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  eval '_script_file=${(%):-%x}'
+else
+  echo "🛑 Run this script with bash." >&2
+  exit 1
+fi
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$_script_file")" >/dev/null && pwd)
+unset _script_file
 BENCHMARKS_DIR="$SCRIPT_DIR/../../ComposeUI/Tests/ComposeUITests/Performance"
 
 SUITES=$(sed -nE 's/^(final )?class ([A-Za-z0-9_]+): BenchmarkTestCase.*/\2/p' "$BENCHMARKS_DIR"/*.swift | paste -sd '|' -)
