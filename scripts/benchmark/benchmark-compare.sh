@@ -113,17 +113,7 @@ macOS | iOS | tvOS) ;;
   ;;
 esac
 
-# zsh has no BASH_SOURCE, so resolve this file the zsh way when run or sourced there
-if [ -n "${BASH_SOURCE[0]:-}" ]; then
-  _script_file=${BASH_SOURCE[0]}
-elif [ -n "${ZSH_VERSION:-}" ]; then
-  eval '_script_file=${(%):-%x}'
-else
-  echo "🛑 Run this script with bash." >&2
-  exit 1
-fi
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$_script_file")" >/dev/null && pwd)
-unset _script_file
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
 PACKAGE_PATH_IN_REPO="ComposeUI"
 PACKAGE_DIR="$REPO_ROOT/$PACKAGE_PATH_IN_REPO"
