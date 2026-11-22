@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)
 BENCHMARKS_DIR="$SCRIPT_DIR/../../ComposeUI/Tests/ComposeUITests/Performance"
 
 SUITES=$(sed -nE 's/^(final )?class ([A-Za-z0-9_]+): BenchmarkTestCase.*/\2/p' "$BENCHMARKS_DIR"/*.swift | paste -sd '|' -)

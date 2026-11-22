@@ -56,7 +56,7 @@ macOS | iOS | tvOS) ;;
   ;;
 esac
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
 PACKAGE_DIR="$REPO_ROOT/ComposeUI"
 
