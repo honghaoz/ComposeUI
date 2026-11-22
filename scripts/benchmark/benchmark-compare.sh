@@ -190,13 +190,13 @@ rsync -a --delete "$PACKAGE_DIR/$BENCHMARKS_PATH_IN_PACKAGE/" "$BASE_PACKAGE_DIR
 # Builds the tests of a package, or prints the end of the build log and fails.
 build() { # <name> <package dir> <simulator derived data dir>
   local log="$WORK_DIR/$1-build.log"
-  local status=0
+  local build_status=0
   if [ "$PLATFORM" = "macOS" ]; then
-    swift build "${BUILD_FLAGS[@]}" --build-tests --package-path "$2" > "$log" 2>&1 || status=$?
+    swift build "${BUILD_FLAGS[@]}" --build-tests --package-path "$2" > "$log" 2>&1 || build_status=$?
   else
-    benchmark_build_for_simulator "$2" "$3" > "$log" 2>&1 || status=$?
+    benchmark_build_for_simulator "$2" "$3" > "$log" 2>&1 || build_status=$?
   fi
-  if [ "$status" -ne 0 ]; then
+  if [ "$build_status" -ne 0 ]; then
     tail -20 "$log" >&2
     return 1
   fi
@@ -228,13 +228,13 @@ fi
 # skipped tests. A benchmark that runs without reporting fails its test, which fails the round.
 run() { # <side> <package dir> <round> <simulator derived data dir>
   local log="$RESULTS_DIR/$1-$3.txt"
-  local status=0
+  local run_status=0
   if [ "$PLATFORM" = "macOS" ]; then
-    SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1 || status=$?
+    SWIFT_DETERMINISTIC_HASHING=1 swift test --skip-build -c release --package-path "$2" --filter "$FILTER" --skip "/test_profile_" > "$log" 2>&1 || run_status=$?
   else
-    benchmark_run_on_simulator "$2" "$4" "$WORK_DIR/$1-tests.txt" > "$log" 2>&1 || status=$?
+    benchmark_run_on_simulator "$2" "$4" "$WORK_DIR/$1-tests.txt" > "$log" 2>&1 || run_status=$?
   fi
-  if [ "$status" -ne 0 ]; then
+  if [ "$run_status" -ne 0 ]; then
     tail -30 "$log" >&2
     fail "The $1 benchmarks failed in round $3, see the end of their log."
   fi
@@ -258,8 +258,8 @@ for round in $(seq "$ROUNDS"); do
 done
 
 echo ""
-status=0
-report=$("$COMPARE" "$RESULTS_DIR" "$TIME_THRESHOLD" "$INSTRUCTIONS_THRESHOLD") || status=$?
+compare_status=0
+report=$("$COMPARE" "$RESULTS_DIR" "$TIME_THRESHOLD" "$INSTRUCTIONS_THRESHOLD") || compare_status=$?
 echo "$report"
 if [ -n "$SUMMARY" ]; then
   {
@@ -273,4 +273,4 @@ if [ -n "$SUMMARY" ]; then
     echo "$report"
   } >> "$SUMMARY"
 fi
-exit "$status"
+exit "$compare_status"

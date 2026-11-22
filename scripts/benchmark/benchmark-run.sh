@@ -102,9 +102,9 @@ if [ ! -s "$WORK_DIR/tests.txt" ]; then
 fi
 
 echo "Running..."
-status=0
-benchmark_run_on_simulator "$PACKAGE_DIR" "$DERIVED_DATA" "$WORK_DIR/tests.txt" 2>&1 | tee "$WORK_DIR/run.log" | { grep --line-buffered -a "^\[BENCHMARK\]" || true; } || status=$?
-if [ "$status" -ne 0 ]; then
+run_status=0
+benchmark_run_on_simulator "$PACKAGE_DIR" "$DERIVED_DATA" "$WORK_DIR/tests.txt" 2>&1 | tee "$WORK_DIR/run.log" | { grep --line-buffered -a "^\[BENCHMARK\]" || true; } || run_status=$?
+if [ "$run_status" -ne 0 ]; then
   tail -30 "$WORK_DIR/run.log" >&2
   echo "🛑 The benchmarks failed, see the end of their log." >&2
   exit 1
