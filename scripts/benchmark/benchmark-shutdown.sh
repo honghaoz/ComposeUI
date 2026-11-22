@@ -51,7 +51,7 @@ iOS | tvOS) ;;
   ;;
 esac
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)
 REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
 # shellcheck source-path=SCRIPTDIR source=benchmark-xcodebuild.sh
 source "$SCRIPT_DIR/benchmark-xcodebuild.sh"
