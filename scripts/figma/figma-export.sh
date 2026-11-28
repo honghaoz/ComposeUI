@@ -24,7 +24,8 @@ print_help() {
   echo "  --node <id>       Another layer to export, such as 114:477. Repeatable."
   echo "  --scales <list>   The scales to render the layers at, comma separated. Optional. Default is 2,3. Empty for"
   echo "                    no renders."
-  echo "  --out <dir>       The folder to save to. Optional. Default is .temp/figma/<file key> in the repository."
+  echo "  --out <dir>       The folder to save in, in a folder of the file's key. Optional. Default is .temp/figma in the"
+  echo "                    repository."
   echo "  --force           Request everything again, such as after the design changed."
   echo "  --save-token      Save a personal access token in the login keychain, typed without showing it."
   echo "  --delete-token    Delete the saved token."
@@ -51,21 +52,22 @@ add_node() { # <id>
 SOURCE=""
 NODE_IDS=""
 SCALES="2,3"
-OUT_DIR=""
+OUT_ROOT=""
 FORCE=false
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-  --node)
-    add_node "${2:-}"
-    shift 2
-    ;;
-  --scales)
-    SCALES="${2:-}"
-    shift 2
-    ;;
-  --out)
-    OUT_DIR="${2:-}"
+  --node | --scales | --out)
+    if [[ "$#" -lt 2 ]]; then
+      echo "🛑 Missing the value of $1" >&2
+      print_help
+      exit 1
+    fi
+    case $1 in
+    --node) add_node "$2" ;;
+    --scales) SCALES=$2 ;;
+    --out) OUT_ROOT=$2 ;;
+    esac
     shift 2
     ;;
   --force)
@@ -137,7 +139,8 @@ for scale in ${SCALES//,/ }; do
   fi
 done
 
-OUT_DIR=${OUT_DIR:-$REPO_ROOT/.temp/figma/$FILE_KEY}
+# each file's exports are in a folder of its own, so that an export never skips a request for another file's output
+OUT_DIR=${OUT_ROOT:-$REPO_ROOT/.temp/figma}/$FILE_KEY
 
 if [ -x "$REPO_ROOT/bin/jq" ]; then
   JQ_BIN="$REPO_ROOT/bin/jq"
@@ -155,11 +158,12 @@ elif ! TOKEN=$(security find-generic-password -a "$USER" -s "$KEYCHAIN_SERVICE" 
   exit 1
 fi
 
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
-
 # The requests to the file and render endpoints, the ones that Figma limits the most.
 FILE_REQUESTS=0
+
+TMP_DIR=$(mktemp -d)
+# the requests are reported on every exit, since a run that fails can have made some
+trap 'rm -rf "$TMP_DIR"; echo "   Requests to the file and render endpoints: $FILE_REQUESTS, of up to 20 a month on a free plan."' EXIT
 
 # The value of a header in a file of response headers.
 header() { # <headers file> <lowercase name>
@@ -260,8 +264,9 @@ else
     done
   done
 
-  # the renders are of the file's version that the JSON is from, so that both show the same design, and a missing file
-  # requests them all again instead of mixing versions
+  # a layer's JSON and its renders come from one fetch, at the file's version that the JSON is from, so that they show
+  # the same design: a missing file requests them all again, and the new JSON replaces the layer's older renders, which
+  # a render request that fails later, or other scales, would otherwise leave next to it
   if $FORCE || $missing; then
     figma_get "/v1/files/$FILE_KEY/nodes?ids=${NODE_IDS//;/%3B}&geometry=paths" "$TMP_DIR/nodes.json"
     FILE_REQUESTS=$((FILE_REQUESTS + 1))
@@ -270,8 +275,11 @@ else
         echo "🛑 The file has no layer $id." >&2
         exit 1
       fi
-      # the layer's entry with the file's name and version, which the response has once for all the layers
+    done
+    for id in ${NODE_IDS//,/ }; do
       name=$(layer_name "$id")
+      rm -f "$OUT_DIR/$name"@*x.png
+      # the layer's entry with the file's name and version, which the response has once for all the layers
       "$JQ_BIN" --arg id "$id" 'del(.nodes) + .nodes[$id]' "$TMP_DIR/nodes.json" > "$TMP_DIR/layer.json"
       mv "$TMP_DIR/layer.json" "$OUT_DIR/$name.json"
       echo "Saved $name.json"
@@ -286,6 +294,7 @@ else
         url=$("$JQ_BIN" -r --arg id "$id" '.images[$id] // empty' "$TMP_DIR/renders.json")
         if [ -z "$url" ]; then
           echo "🛑 Figma couldn't render layer $id at ${scale}x, such as when it's hidden." >&2
+          echo "   Its JSON is saved, and --scales '' exports it without renders." >&2
           exit 1
         fi
         name=$(layer_name "$id")
@@ -326,4 +335,3 @@ if [ -n "$missing_refs" ]; then
 fi
 
 echo "✅ Exported to $OUT_DIR"
-echo "   Requests to the file and render endpoints: $FILE_REQUESTS, of up to 20 a month on a free plan."
