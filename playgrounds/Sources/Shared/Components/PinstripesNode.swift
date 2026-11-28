@@ -67,7 +67,8 @@ struct PinstripesNode: ComposeNode {
   {
     node = LayerNode(update: { layer, context in
       let theme = context.contentView.theme
-      // the layer lays its stripes out again only for a change, so a refresh that sets the same values costs nothing
+      // the layer lays its stripes out again only when one of these values changes, so a refresh with the same ones
+      // doesn't rebuild the stripes
       layer.axis = axis
       layer.stripeThickness = thickness
       layer.stripeSpacing = spacing
