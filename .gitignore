@@ -111,6 +111,7 @@ scripts/*
 !scripts/bootstrap.sh
 !scripts/download-scripts.sh
 !scripts/benchmark/
+!scripts/figma/
 !scripts/hosted-tests/
 !scripts/readme-media/
 

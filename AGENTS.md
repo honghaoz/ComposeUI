@@ -51,6 +51,7 @@ The render pipeline: a `ComposeView` hosts `ComposeContent`, lays out `ComposeNo
 - `cd ComposeUI && swift test --filter <TestCase>.<test_name>`: run a focused test quickly (always from `ComposeUI/`, not the root package).
 - `make -C ComposeUI benchmark [PLATFORM=iOS] [FILTER=<regex>]`: run the benchmarks once in release, on macOS by default or on an iOS or tvOS simulator. Make expands a `$` in `FILTER`, so write it as `$$`.
 - `make -C ComposeUI benchmark-compare [BASE=origin/master] [PLATFORM=iOS] [FILTER=<regex>]`: compare the working tree's benchmarks against a base revision on this machine, failing on more allocations or more than 1% more instructions.
+- `scripts/figma/figma-export.sh '<figma-link>'`: export a Figma layer's JSON and Figma's PNG renders of it to `.temp/figma/`, the source for implementing a design to the pixel. It reads a token that `--save-token` keeps in the keychain.
 
 # Coding Style & Naming Conventions
 
